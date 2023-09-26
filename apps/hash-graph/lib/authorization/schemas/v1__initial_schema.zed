@@ -12,7 +12,9 @@ definition graph/account_group {
 	permission add_member = add_admin
 	permission remove_member = remove_admin
 
-	permission member = direct_owner + direct_admin + direct_member
+	permission owner = direct_owner
+	permission admin = direct_admin + owner
+	permission member = direct_member + admin
 }
 
 definition graph/entity {
@@ -23,8 +25,11 @@ definition graph/entity {
 	permission view = direct_viewer + update
 }
 
-definition graph/web {
-	relation direct_owner: graph/account | graph/account_group#member
+definition graph/namespace {
+	relation owner: graph/account | graph/account_group
 
-	permission create_entity = direct_owner
+
+	relation direct_entity_creator: graph/account | graph/account_group#member
+
+	permission create_entity = direct_entity_creator + owner + owner->owner + owner->admin
 }
