@@ -17,7 +17,8 @@ use crate::{
         ImportSchemaError, ImportSchemaResponse, ReadError, SpiceDbOpenApi, ZanzibarBackend,
     },
     zanzibar::{
-        Consistency, Object, ObjectFilter, Relation, Relationship, Resource, UntypedTuple, Zookie,
+        types::RelationFilter, Consistency, Object, ObjectFilter, Relation, Relationship, Resource,
+        Subject, UntypedTuple, Zookie,
     },
 };
 
@@ -373,16 +374,23 @@ impl ZanzibarBackend for SpiceDbOpenApi {
         consistency: Consistency<'static>,
     ) -> Result<Vec<T>, Report<ReadError>>
     where
-        O: Object + Send + Sync,
-        R: Relation<O> + Send + Sync,
-        U: Object + Send + Sync,
-        S: Serialize + Send + Sync,
-        T: Relationship,
+        O: ObjectFilter + Send + Sync,
+        R: RelationFilter<O> + Send + Sync,
+        U: ObjectFilter + Send + Sync,
+        S: RelationFilter<U> + Send + Sync,
+        for<'de> T: Relationship<
+                Object: Object<Namespace: Deserialize<'de>, Id: Deserialize<'de>>,
+                Relation: Deserialize<'de>,
+                Subject: Subject<
+                    Object: Object<Namespace: Deserialize<'de>, Id: Deserialize<'de>>,
+                    Relation: Deserialize<'de>,
+                >,
+            >,
     {
         #[derive(Serialize)]
         #[serde(
             rename_all = "camelCase",
-            bound = "O: ObjectFilter, R: Serialize, U: Object, S: Serialize"
+            bound = "O: ObjectFilter, R: Serialize, U: ObjectFilter, S: Serialize"
         )]
         struct ReadRelationshipsRequest<O, R, U, S> {
             consistency: model::Consistency<'static>,
@@ -394,7 +402,7 @@ impl ZanzibarBackend for SpiceDbOpenApi {
             user_set: Option<S>,
         }
 
-        impl<U: Object, R: Serialize> Serialize for SubjectFilter<U, R> {
+        impl<U: ObjectFilter, R: Serialize> Serialize for SubjectFilter<U, R> {
             fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
             where
                 S: Serializer,
@@ -418,7 +426,7 @@ impl ZanzibarBackend for SpiceDbOpenApi {
             subject: SubjectFilter<U, S>,
         }
 
-        impl<O: ObjectFilter, R: Serialize, U: Object, S: Serialize> Serialize
+        impl<O: ObjectFilter, R: Serialize, U: ObjectFilter, S: Serialize> Serialize
             for RelationshipFilter<O, R, U, S>
         {
             fn serialize<Ser>(&self, serializer: Ser) -> Result<Ser::Ok, Ser::Error>
@@ -440,7 +448,13 @@ impl ZanzibarBackend for SpiceDbOpenApi {
         }
 
         #[derive(Deserialize)]
-        #[serde(bound = "")]
+        #[serde(bound = "
+        T::Object: Object<Namespace: Deserialize<'de>, Id: Deserialize<'de>>,
+        T::Relation: Deserialize<'de>,
+        T::Subject: Subject<
+                Object: Object<Namespace: Deserialize<'de>, Id: Deserialize<'de>>,
+                Relation: Deserialize<'de>,
+            >,")]
         struct ReadRelationshipsResponse<T: Relationship> {
             #[serde(with = "super::serde::relationship")]
             relationship: T,

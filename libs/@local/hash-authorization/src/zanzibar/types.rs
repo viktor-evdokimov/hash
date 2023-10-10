@@ -6,19 +6,19 @@ use std::{borrow::Cow, fmt::Display};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 /// The relation or permission of a [`Resource`] to another [`Resource`].
-pub trait Affiliation<R: Object + ?Sized>:
-    Serialize + DeserializeOwned + Display + Send + Sync
-{
-}
+pub trait AffiliationFilter<R: ObjectFilter + ?Sized>: Serialize + Display + Send + Sync {}
+
+/// The relation or permission of a [`Resource`] to another [`Resource`].
+pub trait Affiliation<R: Object + ?Sized>: AffiliationFilter<R> {}
 
 /// A computed set of [`Resource`]s for another particular [`Resource`].
-pub trait Permission<R: Object + ?Sized>: Affiliation<R> {}
+pub trait Permission<R: ObjectFilter + ?Sized>: AffiliationFilter<R> {}
 
 /// Encapsulates the relationship between two [`Resource`]s.
-pub trait RelationFilter<R: Object + ?Sized>: Affiliation<R> {}
+pub trait RelationFilter<R: ObjectFilter + ?Sized>: AffiliationFilter<R> {}
 
 /// Encapsulates the relationship between two [`Resource`]s.
-pub trait Relation<R: Object + ?Sized>: Affiliation<R> {}
+pub trait Relation<R: Object + ?Sized>: RelationFilter<R> {}
 
 pub trait ObjectFilter {
     type Namespace: Serialize;
@@ -31,11 +31,20 @@ pub trait ObjectFilter {
     fn id(&self) -> &Self::Id;
 }
 
-pub trait Object: ObjectFilter + Sized + Send + Sync
-where
-    Self::Namespace: DeserializeOwned,
-    Self::Id: DeserializeOwned,
-{
+impl ObjectFilter for ! {
+    type Id = !;
+    type Namespace = !;
+
+    fn namespace(&self) -> &Self::Namespace {
+        self
+    }
+
+    fn id(&self) -> &Self::Id {
+        self
+    }
+}
+
+pub trait Object: ObjectFilter + Sized + Send + Sync {
     type Error: Display;
 
     fn new(namespace: Self::Namespace, id: Self::Id) -> Result<Self, Self::Error>;
@@ -57,8 +66,10 @@ where
 //     }
 // }
 
+impl<O: ObjectFilter> AffiliationFilter<O> for ! {}
 impl<O: Object> Affiliation<O> for ! {}
-impl<O: Object> Permission<O> for ! {}
+impl<O: ObjectFilter> Permission<O> for ! {}
+impl<O: ObjectFilter> RelationFilter<O> for ! {}
 impl<O: Object> Relation<O> for ! {}
 
 pub trait Subject: Sized + Send + Sync {

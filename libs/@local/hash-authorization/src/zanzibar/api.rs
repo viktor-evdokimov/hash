@@ -23,6 +23,28 @@ impl<B> ZanzibarClient<B> {
     }
 }
 
+impl<B: ZanzibarBackend + Send + Sync> ZanzibarClient<B> {
+    async fn read_account_group_relations(
+        &mut self,
+        account_group: AccountGroupId,
+    ) -> Result<Vec<AccountGroupRelationship>, ModifyRelationError> {
+        Ok(self
+            .backend
+            .read_relations::<AccountGroupId, !, !, !, (AccountGroupId, AccountGroupRelationship)>(
+                Some(account_group),
+                None,
+                None,
+                None,
+                Consistency::FullyConsistent,
+            )
+            .await
+            .change_context(ModifyRelationError)?
+            .into_iter()
+            .map(|(_, relation)| relation)
+            .collect())
+    }
+}
+
 impl<B> AuthorizationApi for ZanzibarClient<B>
 where
     B: ZanzibarBackend + Send + Sync,

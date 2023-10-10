@@ -47,7 +47,7 @@ impl<T: Subject> Serialize for SubjectReference<'_, T> {
 }
 
 pub(crate) mod object {
-    use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+    use serde::{de, de::DeserializeOwned, Deserialize, Deserializer, Serialize, Serializer};
 
     use crate::{
         backend::spicedb::serde::ObjectReference,
@@ -65,6 +65,8 @@ pub(crate) mod object {
     pub(crate) fn deserialize<'de, T, D>(deserializer: D) -> Result<T, D::Error>
     where
         T: Object,
+        T::Namespace: Deserialize<'de>,
+        T::Id: Deserialize<'de>,
         D: Deserializer<'de>,
     {
         #[derive(Deserialize)]
@@ -79,11 +81,14 @@ pub(crate) mod object {
 }
 
 pub(crate) mod subject {
-    use serde::{de, ser::SerializeStruct, Deserialize, Deserializer, Serialize, Serializer};
+    use serde::{
+        de, de::DeserializeOwned, ser::SerializeStruct, Deserialize, Deserializer, Serialize,
+        Serializer,
+    };
 
     use crate::{
         backend::spicedb::serde::SubjectReference,
-        zanzibar::{Affiliation, Object, Subject},
+        zanzibar::{Affiliation, Object, Relation, Subject},
     };
 
     pub(crate) fn serialize<T, S>(subject: &T, serializer: S) -> Result<S::Ok, S::Error>
@@ -97,10 +102,16 @@ pub(crate) mod subject {
     pub(crate) fn deserialize<'de, T, D>(deserializer: D) -> Result<T, D::Error>
     where
         T: Subject,
+        T::Relation: Deserialize<'de>,
+        T::Object: Object<Namespace: Deserialize<'de>, Id: Deserialize<'de>>,
         D: Deserializer<'de>,
     {
-        #[derive(Serialize, Deserialize)]
-        #[serde(rename_all = "camelCase", bound = "O: Object, R: Affiliation<O>")]
+        #[derive(Deserialize)]
+        #[serde(
+            rename_all = "camelCase",
+            bound = "O: Object, R: Deserialize<'de>, O::Namespace: Deserialize<'de>, O::Id: \
+                     Deserialize<'de>"
+        )]
         struct Serialized<O, R> {
             #[serde(with = "super::object")]
             object: O,
@@ -147,12 +158,21 @@ pub(crate) mod relationship {
     pub(crate) fn deserialize<'de, T, D>(deserializer: D) -> Result<T, D::Error>
     where
         T: Relationship,
+        T::Object: Object<Namespace: Deserialize<'de>, Id: Deserialize<'de>>,
+        T::Relation: Deserialize<'de>,
+        T::Subject: Subject<
+                Object: Object<Namespace: Deserialize<'de>, Id: Deserialize<'de>>,
+                Relation: Deserialize<'de>,
+            >,
         D: Deserializer<'de>,
     {
-        #[derive(Serialize, Deserialize)]
+        #[derive(Deserialize)]
         #[serde(
             rename_all = "camelCase",
-            bound = "O: Object, R: Affiliation<O>, S: Subject"
+            bound = "\
+                O: Object, O::Namespace: Deserialize<'de>, O::Id: Deserialize<'de>, R: \
+                     Deserialize<'de>,S: Subject<Object: Object<Namespace: Deserialize<'de>, Id: \
+                     Deserialize<'de>>>, S::Relation: Deserialize<'de>"
         )]
         struct RelationshipReference<O, R, S> {
             #[serde(with = "super::object")]

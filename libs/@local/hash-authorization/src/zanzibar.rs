@@ -9,4 +9,4 @@ pub use self::{
 };
 
 mod api;
-mod types;
+pub mod types;

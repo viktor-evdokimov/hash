@@ -5,6 +5,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use utoipa::ToSchema;
 
 use crate::zanzibar::{
+    types::{AffiliationFilter, RelationFilter},
     Affiliation, Object, ObjectFilter, Permission, Relation, Relationship, Resource, Subject,
 };
 
@@ -67,9 +68,8 @@ pub enum AccountGroupRelation {
 impl Relationship for (AccountGroupId, AccountGroupRelationship) {
     type Error = !;
     type Object = AccountGroupId;
-
-    type Relation = impl Affiliation<Self::Object>;
-    type Subject = impl Subject;
+    type Relation = AccountGroupRelation;
+    type Subject = AccountId;
 
     fn new(
         object: Self::Object,
@@ -176,7 +176,9 @@ impl fmt::Display for AccountGroupRelation {
     }
 }
 
+impl AffiliationFilter<AccountGroupId> for AccountGroupRelation {}
 impl Affiliation<AccountGroupId> for AccountGroupRelation {}
+impl RelationFilter<AccountGroupId> for AccountGroupRelation {}
 impl Relation<AccountGroupId> for AccountGroupRelation {}
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
@@ -198,5 +200,6 @@ impl fmt::Display for AccountGroupPermission {
     }
 }
 
+impl AffiliationFilter<AccountGroupId> for AccountGroupPermission {}
 impl Affiliation<AccountGroupId> for AccountGroupPermission {}
 impl Permission<AccountGroupId> for AccountGroupPermission {}

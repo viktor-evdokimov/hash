@@ -4,12 +4,13 @@ use core::fmt;
 use std::{error::Error, future::Future};
 
 use error_stack::Report;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 pub use self::spicedb::SpiceDbOpenApi;
 use crate::{
     zanzibar::{
-        Consistency, Object, ObjectFilter, Relation, Relationship, Resource, UntypedTuple, Zookie,
+        types::RelationFilter, Consistency, Object, ObjectFilter, Relation, Relationship, Resource,
+        Subject, UntypedTuple, Zookie,
     },
     NoAuthorization,
 };
@@ -109,10 +110,16 @@ pub trait ZanzibarBackend {
     ) -> impl Future<Output = Result<Vec<T>, Report<ReadError>>> + Send
     where
         O: ObjectFilter + Send + Sync,
-        R: Relation<O> + Send + Sync,
+        R: RelationFilter<O> + Send + Sync,
         U: ObjectFilter + Send + Sync,
-        S: Serialize + Send + Sync,
-        T: Relationship;
+        S: RelationFilter<U> + Send + Sync,
+        T: Relationship,
+        for<'de> T::Object: Object<Namespace: Deserialize<'de>, Id: Deserialize<'de>>,
+        for<'de> T::Relation: Deserialize<'de>,
+        for<'de> T::Subject: Subject<
+                Object: Object<Namespace: Deserialize<'de>, Id: Deserialize<'de>>,
+                Relation: Deserialize<'de>,
+            >;
 }
 
 impl ZanzibarBackend for NoAuthorization {
