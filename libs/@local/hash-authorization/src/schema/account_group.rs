@@ -4,7 +4,9 @@ use graph_types::account::{AccountGroupId, AccountId};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use crate::zanzibar::{Affiliation, Object, Permission, Relation, Relationship, Resource, Subject};
+use crate::zanzibar::{
+    Affiliation, Object, ObjectFilter, Permission, Relation, Relationship, Resource, Subject,
+};
 
 impl Resource for AccountGroupId {
     type Id = Self;
@@ -18,14 +20,9 @@ impl Resource for AccountGroupId {
     }
 }
 
-impl Object for AccountGroupId {
-    type Error = !;
+impl ObjectFilter for AccountGroupId {
     type Id = Self;
     type Namespace = Cow<'static, str>;
-
-    fn new(namespace: Self::Namespace, id: Self::Id) -> Result<Self, Self::Error> {
-        todo!()
-    }
 
     fn namespace(&self) -> &Self::Namespace {
         &Cow::Borrowed("graph/account_group")
@@ -33,6 +30,14 @@ impl Object for AccountGroupId {
 
     fn id(&self) -> &Self::Id {
         self
+    }
+}
+
+impl Object for AccountGroupId {
+    type Error = !;
+
+    fn new(namespace: Self::Namespace, id: Self::Id) -> Result<Self, Self::Error> {
+        todo!()
     }
 }
 

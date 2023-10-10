@@ -3,7 +3,7 @@ use std::borrow::Cow;
 use graph_types::account::AccountId;
 use serde::{Deserialize, Serialize};
 
-use crate::zanzibar::{Object, Resource, Subject};
+use crate::zanzibar::{Object, ObjectFilter, Resource, Subject};
 
 impl Resource for AccountId {
     type Id = Self;
@@ -35,14 +35,9 @@ impl Resource for PublicAccess {
     }
 }
 
-impl Object for AccountId {
-    type Error = !;
+impl ObjectFilter for AccountId {
     type Id = Self;
     type Namespace = Cow<'static, str>;
-
-    fn new(namespace: Self::Namespace, id: Self::Id) -> Result<Self, Self::Error> {
-        Ok(id)
-    }
 
     fn namespace(&self) -> &Self::Namespace {
         &Cow::Borrowed("graph/account")
@@ -50,5 +45,13 @@ impl Object for AccountId {
 
     fn id(&self) -> &Self::Id {
         self
+    }
+}
+
+impl Object for AccountId {
+    type Error = !;
+
+    fn new(namespace: Self::Namespace, id: Self::Id) -> Result<Self, Self::Error> {
+        Ok(id)
     }
 }

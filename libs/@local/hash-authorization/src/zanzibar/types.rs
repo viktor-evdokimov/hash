@@ -15,14 +15,14 @@ pub trait Affiliation<R: Object + ?Sized>:
 pub trait Permission<R: Object + ?Sized>: Affiliation<R> {}
 
 /// Encapsulates the relationship between two [`Resource`]s.
+pub trait RelationFilter<R: Object + ?Sized>: Affiliation<R> {}
+
+/// Encapsulates the relationship between two [`Resource`]s.
 pub trait Relation<R: Object + ?Sized>: Affiliation<R> {}
 
-pub trait Object: Sized + Send + Sync {
-    type Namespace: Serialize + DeserializeOwned;
-    type Id: Serialize + DeserializeOwned;
-    type Error: Display;
-
-    fn new(namespace: Self::Namespace, id: Self::Id) -> Result<Self, Self::Error>;
+pub trait ObjectFilter {
+    type Namespace: Serialize;
+    type Id: Serialize;
 
     /// Returns the namespace for this `Object`.
     fn namespace(&self) -> &Self::Namespace;
@@ -30,6 +30,32 @@ pub trait Object: Sized + Send + Sync {
     /// Returns the unique identifier for this `Object`.
     fn id(&self) -> &Self::Id;
 }
+
+pub trait Object: ObjectFilter + Sized + Send + Sync
+where
+    Self::Namespace: DeserializeOwned,
+    Self::Id: DeserializeOwned,
+{
+    type Error: Display;
+
+    fn new(namespace: Self::Namespace, id: Self::Id) -> Result<Self, Self::Error>;
+}
+
+// impl<O> ObjectFilter for O
+// where
+//     O: Object,
+// {
+//     type Id = O::Id;
+//     type Namespace = O::Namespace;
+//
+//     fn namespace(&self) -> &Self::Namespace {
+//         self.namespace()
+//     }
+//
+//     fn id(&self) -> &Self::Id {
+//         self.id()
+//     }
+// }
 
 impl<O: Object> Affiliation<O> for ! {}
 impl<O: Object> Permission<O> for ! {}

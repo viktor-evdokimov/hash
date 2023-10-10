@@ -8,7 +8,9 @@ use serde::Serialize;
 
 pub use self::spicedb::SpiceDbOpenApi;
 use crate::{
-    zanzibar::{Consistency, Object, Relation, Relationship, Resource, UntypedTuple, Zookie},
+    zanzibar::{
+        Consistency, Object, ObjectFilter, Relation, Relationship, Resource, UntypedTuple, Zookie,
+    },
     NoAuthorization,
 };
 
@@ -106,9 +108,9 @@ pub trait ZanzibarBackend {
         consistency: Consistency<'static>,
     ) -> impl Future<Output = Result<Vec<T>, Report<ReadError>>> + Send
     where
-        O: Object + Send + Sync,
+        O: ObjectFilter + Send + Sync,
         R: Relation<O> + Send + Sync,
-        U: Object + Send + Sync,
+        U: ObjectFilter + Send + Sync,
         S: Serialize + Send + Sync,
         T: Relationship;
 }

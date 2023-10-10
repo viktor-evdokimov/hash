@@ -16,7 +16,9 @@ use crate::{
         DeleteRelationError, DeleteRelationResponse, ExportSchemaError, ExportSchemaResponse,
         ImportSchemaError, ImportSchemaResponse, ReadError, SpiceDbOpenApi, ZanzibarBackend,
     },
-    zanzibar::{Consistency, Object, Relation, Relationship, Resource, UntypedTuple, Zookie},
+    zanzibar::{
+        Consistency, Object, ObjectFilter, Relation, Relationship, Resource, UntypedTuple, Zookie,
+    },
 };
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -380,7 +382,7 @@ impl ZanzibarBackend for SpiceDbOpenApi {
         #[derive(Serialize)]
         #[serde(
             rename_all = "camelCase",
-            bound = "O: Object, R: Serialize, U: Object, S: Serialize"
+            bound = "O: ObjectFilter, R: Serialize, U: Object, S: Serialize"
         )]
         struct ReadRelationshipsRequest<O, R, U, S> {
             consistency: model::Consistency<'static>,
@@ -416,7 +418,7 @@ impl ZanzibarBackend for SpiceDbOpenApi {
             subject: SubjectFilter<U, S>,
         }
 
-        impl<O: Object, R: Serialize, U: Object, S: Serialize> Serialize
+        impl<O: ObjectFilter, R: Serialize, U: Object, S: Serialize> Serialize
             for RelationshipFilter<O, R, U, S>
         {
             fn serialize<Ser>(&self, serializer: Ser) -> Result<Ser::Ok, Ser::Error>

@@ -2,7 +2,7 @@ use serde::{
     de::IntoDeserializer, ser::SerializeStruct, Deserialize, Deserializer, Serialize, Serializer,
 };
 
-use crate::zanzibar::{Object, Subject};
+use crate::zanzibar::{Object, ObjectFilter, Subject};
 
 fn empty_string_as_none<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
 where
@@ -17,7 +17,7 @@ where
 
 pub(crate) struct ObjectReference<'t, T>(pub(crate) &'t T);
 
-impl<T: Object> Serialize for ObjectReference<'_, T> {
+impl<T: ObjectFilter> Serialize for ObjectReference<'_, T> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -46,20 +46,23 @@ impl<T: Subject> Serialize for SubjectReference<'_, T> {
     }
 }
 
-pub mod object {
+pub(crate) mod object {
     use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
-    use crate::{backend::spicedb::serde::ObjectReference, zanzibar::Object};
+    use crate::{
+        backend::spicedb::serde::ObjectReference,
+        zanzibar::{Object, ObjectFilter},
+    };
 
-    pub fn serialize<T, S>(object: &T, serializer: S) -> Result<S::Ok, S::Error>
+    pub(crate) fn serialize<T, S>(object: &T, serializer: S) -> Result<S::Ok, S::Error>
     where
-        T: Object,
+        T: ObjectFilter,
         S: Serializer,
     {
         ObjectReference(object).serialize(serializer)
     }
 
-    pub fn deserialize<'de, T, D>(deserializer: D) -> Result<T, D::Error>
+    pub(crate) fn deserialize<'de, T, D>(deserializer: D) -> Result<T, D::Error>
     where
         T: Object,
         D: Deserializer<'de>,
@@ -75,7 +78,7 @@ pub mod object {
     }
 }
 
-pub mod subject {
+pub(crate) mod subject {
     use serde::{de, ser::SerializeStruct, Deserialize, Deserializer, Serialize, Serializer};
 
     use crate::{
@@ -83,7 +86,7 @@ pub mod subject {
         zanzibar::{Affiliation, Object, Subject},
     };
 
-    pub fn serialize<T, S>(subject: &T, serializer: S) -> Result<S::Ok, S::Error>
+    pub(crate) fn serialize<T, S>(subject: &T, serializer: S) -> Result<S::Ok, S::Error>
     where
         T: Subject,
         S: Serializer,
@@ -91,7 +94,7 @@ pub mod subject {
         SubjectReference(subject).serialize(serializer)
     }
 
-    pub fn deserialize<'de, T, D>(deserializer: D) -> Result<T, D::Error>
+    pub(crate) fn deserialize<'de, T, D>(deserializer: D) -> Result<T, D::Error>
     where
         T: Subject,
         D: Deserializer<'de>,
@@ -113,14 +116,14 @@ pub mod subject {
     }
 }
 
-pub mod relationship {
+pub(crate) mod relationship {
     use serde::{de, ser::SerializeStruct, Deserialize, Deserializer, Serialize, Serializer};
 
     use crate::{
         backend::spicedb::serde::{ObjectReference, SubjectReference},
         zanzibar::{Affiliation, Object, Relationship, Subject},
     };
-    pub fn serialize<T, S>(relationship: &T, serializer: S) -> Result<S::Ok, S::Error>
+    pub(crate) fn serialize<T, S>(relationship: &T, serializer: S) -> Result<S::Ok, S::Error>
     where
         T: Relationship,
         S: Serializer,
@@ -141,7 +144,7 @@ pub mod relationship {
         .serialize(serializer)
     }
 
-    pub fn deserialize<'de, T, D>(deserializer: D) -> Result<T, D::Error>
+    pub(crate) fn deserialize<'de, T, D>(deserializer: D) -> Result<T, D::Error>
     where
         T: Relationship,
         D: Deserializer<'de>,
