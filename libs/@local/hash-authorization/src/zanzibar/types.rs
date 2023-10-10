@@ -3,120 +3,146 @@
 use core::fmt;
 use std::{borrow::Cow, fmt::Display};
 
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 /// The relation or permission of a [`Resource`] to another [`Resource`].
-pub trait Affiliation<R: Resource + ?Sized>: Serialize + Display {}
+pub trait Affiliation<R: Object + ?Sized>:
+    Serialize + DeserializeOwned + Display + Send + Sync
+{
+}
 
 /// A computed set of [`Resource`]s for another particular [`Resource`].
-pub trait Permission<R: Resource + ?Sized>: Affiliation<R> {}
+pub trait Permission<R: Object + ?Sized>: Affiliation<R> {}
 
 /// Encapsulates the relationship between two [`Resource`]s.
-pub trait Relation<R: Resource + ?Sized>: Affiliation<R> {}
+pub trait Relation<R: Object + ?Sized>: Affiliation<R> {}
 
-pub trait Tuple {
-    fn object_namespace(&self) -> &(impl Serialize + Display + ?Sized);
-    fn object_id(&self) -> impl Serialize + Display;
-    fn affiliation(&self) -> &(impl Serialize + Display + ?Sized);
-    fn user_namespace(&self) -> &(impl Serialize + Display + ?Sized);
-    fn user_id(&self) -> impl Serialize + Display;
-    fn user_set(&self) -> Option<&(impl Serialize + Display + ?Sized)>;
+pub trait Object: Sized + Send + Sync {
+    type Namespace: Serialize + DeserializeOwned;
+    type Id: Serialize + DeserializeOwned;
+    type Error: Display;
+
+    fn new(namespace: Self::Namespace, id: Self::Id) -> Result<Self, Self::Error>;
+
+    /// Returns the namespace for this `Object`.
+    fn namespace(&self) -> &Self::Namespace;
+
+    /// Returns the unique identifier for this `Object`.
+    fn id(&self) -> &Self::Id;
 }
 
-impl<T: Tuple> Tuple for &T {
-    fn object_namespace(&self) -> &(impl Serialize + Display + ?Sized) {
-        (*self).object_namespace()
-    }
+impl<O: Object> Affiliation<O> for ! {}
+impl<O: Object> Permission<O> for ! {}
+impl<O: Object> Relation<O> for ! {}
 
-    fn object_id(&self) -> impl Serialize + Display {
-        (*self).object_id()
-    }
+pub trait Subject: Sized + Send + Sync {
+    type Object: Object;
+    type Relation: Affiliation<Self::Object>;
+    type Error: Display;
 
-    fn affiliation(&self) -> &(impl Serialize + Display + ?Sized) {
-        (*self).affiliation()
-    }
+    fn new(object: Self::Object, relation: Option<Self::Relation>) -> Result<Self, Self::Error>;
 
-    fn user_namespace(&self) -> &(impl Serialize + Display + ?Sized) {
-        (*self).user_namespace()
-    }
+    /// Returns the underlying [`Object`] of this `Subject`.
+    fn object(&self) -> &Self::Object;
 
-    fn user_id(&self) -> impl Serialize + Display {
-        (*self).user_id()
-    }
-
-    fn user_set(&self) -> Option<&(impl Serialize + Display + ?Sized)> {
-        (*self).user_set()
-    }
+    /// Returns the user set of this `Subject`, if any.
+    fn set(&self) -> Option<&Self::Relation>;
 }
 
-impl<O, A, U> Tuple for (O, A, U)
+impl<O, R> Subject for (O, Option<R>)
 where
-    O: Resource,
-    A: Affiliation<O>,
-    U: Resource,
+    O: Object,
+    R: Affiliation<O>,
 {
-    fn object_namespace(&self) -> &(impl Serialize + Display + ?Sized) {
-        O::namespace()
+    type Error = !;
+    type Object = O;
+    type Relation = R;
+
+    fn new(object: Self::Object, relation: Option<Self::Relation>) -> Result<Self, Self::Error> {
+        Ok((object, relation))
     }
 
-    fn object_id(&self) -> impl Serialize + Display {
-        self.0.id()
+    fn object(&self) -> &Self::Object {
+        &self.0
     }
 
-    fn affiliation(&self) -> &(impl Serialize + Display + ?Sized) {
+    fn set(&self) -> Option<&Self::Relation> {
+        self.1.as_ref()
+    }
+}
+
+impl<O> Subject for O
+where
+    O: Object,
+{
+    type Error = !;
+    type Object = O;
+    type Relation = !;
+
+    fn new(object: Self::Object, _relation: Option<!>) -> Result<Self, Self::Error> {
+        Ok(object)
+    }
+
+    fn object(&self) -> &Self::Object {
+        self
+    }
+
+    fn set(&self) -> Option<&Self::Relation> {
+        None
+    }
+}
+
+pub trait Relationship: Sized + Send {
+    type Error: Display;
+    type Object: Object;
+    type Relation: Affiliation<Self::Object>;
+    type Subject: Subject;
+
+    fn new(
+        object: Self::Object,
+        relation: Self::Relation,
+        subject: Self::Subject,
+    ) -> Result<Self, Self::Error>;
+
+    /// Returns the underlying [`Object`] of this `Relationship`.
+    fn object(&self) -> &Self::Object;
+
+    /// Returns the [`Relation`] of this `Relationship`.
+    fn relation(&self) -> &Self::Relation;
+
+    /// Returns the [`Subject`] of this `Relationship`.
+    fn subject(&self) -> &Self::Subject;
+}
+
+impl<O, R, S> Relationship for (O, R, S)
+where
+    O: Object,
+    R: Affiliation<O>,
+    S: Subject,
+{
+    type Error = !;
+    type Object = O;
+    type Relation = R;
+    type Subject = S;
+
+    fn new(
+        object: Self::Object,
+        relation: Self::Relation,
+        subject: Self::Subject,
+    ) -> Result<Self, Self::Error> {
+        Ok((object, relation, subject))
+    }
+
+    fn object(&self) -> &Self::Object {
+        &self.0
+    }
+
+    fn relation(&self) -> &Self::Relation {
         &self.1
     }
 
-    fn user_namespace(&self) -> &(impl Serialize + Display + ?Sized) {
-        U::namespace()
-    }
-
-    fn user_id(&self) -> impl Serialize + Display {
-        self.2.id()
-    }
-
-    fn user_set(&self) -> Option<&(impl Serialize + Display + ?Sized)> {
-        #[derive(Serialize)]
-        struct Unspecified;
-        impl Display for Unspecified {
-            fn fmt(&self, _: &mut fmt::Formatter<'_>) -> fmt::Result {
-                Ok(())
-            }
-        }
-
-        None::<&Unspecified>
-    }
-}
-
-impl<O, A, U, S> Tuple for (O, A, U, S)
-where
-    O: Resource,
-    A: Affiliation<O>,
-    U: Resource,
-    S: Affiliation<U>,
-{
-    fn object_namespace(&self) -> &(impl Serialize + Display + ?Sized) {
-        O::namespace()
-    }
-
-    fn object_id(&self) -> impl Serialize + Display {
-        self.0.id()
-    }
-
-    fn affiliation(&self) -> &(impl Serialize + Display + ?Sized) {
-        &self.1
-    }
-
-    fn user_namespace(&self) -> &(impl Serialize + Display + ?Sized) {
-        U::namespace()
-    }
-
-    fn user_id(&self) -> impl Serialize + Display {
-        self.2.id()
-    }
-
-    fn user_set(&self) -> Option<&(impl Serialize + Display + ?Sized)> {
-        Some(&self.3)
+    fn subject(&self) -> &Self::Subject {
+        &self.2
     }
 }
 
@@ -147,32 +173,6 @@ pub struct UntypedTuple<'t> {
     pub user_namespace: Cow<'t, str>,
     pub user_id: Cow<'t, str>,
     pub user_set: Option<Cow<'t, str>>,
-}
-
-impl Tuple for UntypedTuple<'_> {
-    fn object_namespace(&self) -> &(impl Serialize + Display + ?Sized) {
-        &self.object_namespace
-    }
-
-    fn object_id(&self) -> impl Serialize + Display {
-        &self.object_id
-    }
-
-    fn affiliation(&self) -> &(impl Serialize + Display + ?Sized) {
-        &self.affiliation
-    }
-
-    fn user_namespace(&self) -> &(impl Serialize + Display + ?Sized) {
-        &self.user_namespace
-    }
-
-    fn user_id(&self) -> impl Serialize + Display {
-        &self.user_id
-    }
-
-    fn user_set(&self) -> Option<&(impl Serialize + Display + ?Sized)> {
-        self.user_set.as_ref()
-    }
 }
 
 impl UntypedTuple<'_> {
@@ -207,21 +207,21 @@ impl fmt::Display for UntypedTuple<'_> {
     }
 }
 
-impl<'t> UntypedTuple<'t> {
-    #[must_use]
-    pub fn from_tuple<T: Tuple>(tuple: &'t T) -> Self {
-        Self {
-            object_namespace: Cow::Owned(tuple.object_namespace().to_string()),
-            object_id: Cow::Owned(tuple.object_id().to_string()),
-            affiliation: Cow::Owned(tuple.affiliation().to_string()),
-            user_namespace: Cow::Owned(tuple.user_namespace().to_string()),
-            user_id: Cow::Owned(tuple.user_id().to_string()),
-            user_set: tuple
-                .user_set()
-                .map(|user_set| Cow::Owned(user_set.to_string())),
-        }
-    }
-}
+// impl<'t> UntypedTuple<'t> {
+//     #[must_use]
+//     pub fn from_tuple<T: Tuple>(tuple: &'t T) -> Self {
+//         Self {
+//             object_namespace: Cow::Owned(tuple.object_namespace().to_string()),
+//             object_id: Cow::Owned(tuple.object_id().to_string()),
+//             affiliation: Cow::Owned(tuple.affiliation().to_string()),
+//             user_namespace: Cow::Owned(tuple.user_namespace().to_string()),
+//             user_id: Cow::Owned(tuple.user_id().to_string()),
+//             user_set: tuple
+//                 .user_set()
+//                 .map(|user_set| Cow::Owned(user_set.to_string())),
+//         }
+//     }
+// }
 
 /// Provide causality metadata between Write and Check requests.
 #[derive(Debug, Clone, Serialize, Deserialize)]

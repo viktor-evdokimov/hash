@@ -8,12 +8,15 @@ use tokio_util::{codec::FramedRead, io::StreamReader};
 
 use crate::{
     backend::{
-        spicedb::model::{self, RpcError},
+        spicedb::{
+            model::{self, RpcError},
+            serde::{ObjectReference, SubjectReference},
+        },
         CheckError, CheckResponse, CreateRelationError, CreateRelationResponse,
         DeleteRelationError, DeleteRelationResponse, ExportSchemaError, ExportSchemaResponse,
         ImportSchemaError, ImportSchemaResponse, ReadError, SpiceDbOpenApi, ZanzibarBackend,
     },
-    zanzibar::{Consistency, Relation, Resource, Tuple, UntypedTuple, Zookie},
+    zanzibar::{Consistency, Object, Relation, Relationship, Resource, UntypedTuple, Zookie},
 };
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -147,17 +150,18 @@ impl SpiceDbOpenApi {
         + Send,
     ) -> Result<Zookie<'static>, Report<InvocationError>>
     where
-        T: Tuple + Send + Sync,
+        T: Relationship + Send + Sync,
     {
         #[derive(Serialize)]
-        #[serde(bound = "T: Tuple")]
+        #[serde(bound = "T: Relationship")]
         struct RelationshipUpdate<T> {
             operation: model::RelationshipUpdateOperation,
-            relationship: model::Relationship<T>,
+            #[serde(with = "super::serde::relationship")]
+            relationship: T,
         }
 
         #[derive(Serialize)]
-        #[serde(rename_all = "camelCase", bound = "T: Tuple")]
+        #[serde(rename_all = "camelCase", bound = "T: Relationship")]
         struct RequestBody<T> {
             updates: Vec<RelationshipUpdate<T>>,
         }
@@ -174,9 +178,9 @@ impl SpiceDbOpenApi {
                 &RequestBody {
                     updates: operations
                         .into_iter()
-                        .map(|(operation, tuple)| RelationshipUpdate::<T> {
+                        .map(|(operation, relationship)| RelationshipUpdate::<T> {
                             operation,
-                            relationship: model::Relationship(tuple),
+                            relationship,
                         })
                         .collect(),
                 },
@@ -246,7 +250,7 @@ impl ZanzibarBackend for SpiceDbOpenApi {
         tuples: impl IntoIterator<Item = T, IntoIter: Send> + Send,
     ) -> Result<CreateRelationResponse, Report<CreateRelationError>>
     where
-        T: Tuple + Send + Sync,
+        T: Relationship + Send + Sync,
     {
         self.modify_relations(repeat(model::RelationshipUpdateOperation::Create).zip(tuples))
             .await
@@ -263,7 +267,7 @@ impl ZanzibarBackend for SpiceDbOpenApi {
         tuples: impl IntoIterator<Item = T, IntoIter: Send> + Send,
     ) -> Result<CreateRelationResponse, Report<CreateRelationError>>
     where
-        T: Tuple + Send + Sync,
+        T: Relationship + Send + Sync,
     {
         self.modify_relations(repeat(model::RelationshipUpdateOperation::Touch).zip(tuples))
             .await
@@ -280,7 +284,7 @@ impl ZanzibarBackend for SpiceDbOpenApi {
         tuples: impl IntoIterator<Item = T, IntoIter: Send> + Send,
     ) -> Result<DeleteRelationResponse, Report<DeleteRelationError>>
     where
-        T: Tuple + Send + Sync,
+        T: Relationship + Send + Sync,
     {
         self.modify_relations(repeat(model::RelationshipUpdateOperation::Delete).zip(tuples))
             .await
@@ -298,15 +302,15 @@ impl ZanzibarBackend for SpiceDbOpenApi {
         consistency: Consistency<'_>,
     ) -> Result<CheckResponse, Report<CheckError>>
     where
-        T: Tuple + Sync,
+        T: Relationship + Sync,
     {
         #[derive(Serialize)]
         #[serde(rename_all = "camelCase", bound = "")]
-        struct RequestBody<'t, T: Tuple> {
+        struct RequestBody<'t, T: Relationship> {
             consistency: model::Consistency<'t>,
-            resource: model::ObjectReference<T>,
-            permission: model::RelationReference<T>,
-            subject: model::SubjectReference<T>,
+            resource: ObjectReference<'t, T::Object>,
+            permission: &'t T::Relation,
+            subject: SubjectReference<'t, T::Subject>,
         }
 
         #[derive(Deserialize)]
@@ -326,18 +330,18 @@ impl ZanzibarBackend for SpiceDbOpenApi {
             permissionship: Permissionship,
         }
 
-        let request = RequestBody {
+        let request = RequestBody::<T> {
             consistency: consistency.into(),
-            resource: model::ObjectReference(tuple),
-            permission: model::RelationReference(tuple),
-            subject: model::SubjectReference(tuple),
+            resource: ObjectReference(tuple.object()),
+            permission: tuple.relation(),
+            subject: SubjectReference(tuple.subject()),
         };
 
         let response: RequestResponse = self
             .call("/v1/permissions/check", &request)
             .await
             .change_context_lazy(|| CheckError {
-                tuple: UntypedTuple::from_tuple(tuple).into_owned(),
+                tuple: /*UntypedTuple::from_tuple(tuple).into_owned()*/ todo!(),
             })?;
 
         let has_permission = match response.permissionship {
@@ -358,26 +362,25 @@ impl ZanzibarBackend for SpiceDbOpenApi {
         clippy::missing_errors_doc,
         reason = "False positive, documented on trait"
     )]
-    async fn read_relations<O, R, U, S>(
+    async fn read_relations<O, R, U, S, T>(
         &self,
         object: Option<O>,
         relation: Option<R>,
         user: Option<U>,
         user_set: Option<S>,
         consistency: Consistency<'static>,
-    ) -> Result<Vec<(O, R, U, Option<S>)>, Report<ReadError>>
+    ) -> Result<Vec<T>, Report<ReadError>>
     where
-        O: Resource + From<O::Id> + Send + Sync,
-        O::Id: DeserializeOwned,
-        R: Relation<O> + Send + Sync + DeserializeOwned,
-        U: Resource + From<U::Id> + Send + Sync,
-        U::Id: DeserializeOwned,
-        S: Serialize + Send + Sync + DeserializeOwned,
+        O: Object + Send + Sync,
+        R: Relation<O> + Send + Sync,
+        U: Object + Send + Sync,
+        S: Serialize + Send + Sync,
+        T: Relationship,
     {
         #[derive(Serialize)]
         #[serde(
             rename_all = "camelCase",
-            bound = "O: Resource, R: Serialize, U: Resource, S: Serialize"
+            bound = "O: Object, R: Serialize, U: Object, S: Serialize"
         )]
         struct ReadRelationshipsRequest<O, R, U, S> {
             consistency: model::Consistency<'static>,
@@ -389,15 +392,15 @@ impl ZanzibarBackend for SpiceDbOpenApi {
             user_set: Option<S>,
         }
 
-        impl<U: Resource, R: Serialize> Serialize for SubjectFilter<U, R> {
+        impl<U: Object, R: Serialize> Serialize for SubjectFilter<U, R> {
             fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
             where
                 S: Serializer,
             {
                 let mut ser = serializer.serialize_struct("SubjectFilter", 3)?;
-                ser.serialize_field("subjectType", U::namespace())?;
+                ser.serialize_field("subjectType", self.user.as_ref().unwrap().namespace())?;
                 if let Some(user) = &self.user {
-                    ser.serialize_field("optionalSubjectId", &user.id())?;
+                    ser.serialize_field("optionalSubjectId", user.id())?;
                 }
                 if let Some(relation) = &self.user_set {
                     ser.serialize_field("optionalRelation", relation)?;
@@ -413,7 +416,7 @@ impl ZanzibarBackend for SpiceDbOpenApi {
             subject: SubjectFilter<U, S>,
         }
 
-        impl<O: Resource, R: Serialize, U: Resource, S: Serialize> Serialize
+        impl<O: Object, R: Serialize, U: Object, S: Serialize> Serialize
             for RelationshipFilter<O, R, U, S>
         {
             fn serialize<Ser>(&self, serializer: Ser) -> Result<Ser::Ok, Ser::Error>
@@ -421,9 +424,9 @@ impl ZanzibarBackend for SpiceDbOpenApi {
                 Ser: Serializer,
             {
                 let mut ser = serializer.serialize_struct("RelationshipFilter", 4)?;
-                ser.serialize_field("resourceType", O::namespace())?;
+                ser.serialize_field("resourceType", self.object.as_ref().unwrap().namespace())?;
                 if let Some(object) = &self.object {
-                    ser.serialize_field("optionalResourceId", &object.id())?;
+                    ser.serialize_field("optionalResourceId", object.id())?;
                 }
                 if let Some(relation) = &self.relation {
                     ser.serialize_field("optionalRelation", relation)?;
@@ -435,28 +438,13 @@ impl ZanzibarBackend for SpiceDbOpenApi {
         }
 
         #[derive(Deserialize)]
-        #[serde(
-            rename_all = "camelCase",
-            bound = "O: Resource + From<O::Id>, O::Id: Deserialize<'de>, R: Deserialize<'de>, U: \
-                     Resource + From<U::Id>, U::Id: Deserialize<'de>, S: Deserialize<'de>"
-        )]
-        struct ReadRelationshipsResponse<O, R, U, S> {
-            relationship: Relationship<O, R, U, S>,
+        #[serde(bound = "")]
+        struct ReadRelationshipsResponse<T: Relationship> {
+            #[serde(with = "super::serde::relationship")]
+            relationship: T,
         }
 
-        #[derive(Deserialize)]
-        #[serde(
-            rename_all = "camelCase",
-            bound = "O: Resource + From<O::Id>, O::Id: Deserialize<'de>, R: Deserialize<'de>, U: \
-                     Resource + From<U::Id>, U::Id: Deserialize<'de>, S: Deserialize<'de>"
-        )]
-        struct Relationship<O, R, U, S> {
-            resource: model::ObjectReference<O>,
-            relation: R,
-            subject: model::SubjectReference<(U, Option<S>)>,
-        }
-
-        self.stream::<ReadRelationshipsResponse<O, R, U, S>>(
+        self.stream::<ReadRelationshipsResponse<T>>(
             "/v1/relationships/read",
             &ReadRelationshipsRequest {
                 consistency: model::Consistency::from(consistency),
@@ -469,14 +457,7 @@ impl ZanzibarBackend for SpiceDbOpenApi {
         )
         .await
         .change_context(ReadError)?
-        .map_ok(|response| {
-            let object = response.relationship.resource.0;
-            let relation = response.relationship.relation;
-            let user = response.relationship.subject.0.0;
-            let user_set = response.relationship.subject.0.1;
-
-            (object, relation, user, user_set)
-        })
+        .map_ok(|response| response.relationship)
         .map_err(|error| error.change_context(ReadError))
         .try_collect::<Vec<_>>()
         .await

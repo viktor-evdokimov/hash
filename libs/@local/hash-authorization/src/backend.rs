@@ -1,14 +1,14 @@
-mod spicedb;
+pub mod spicedb;
 
 use core::fmt;
 use std::{error::Error, future::Future};
 
 use error_stack::Report;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::Serialize;
 
 pub use self::spicedb::SpiceDbOpenApi;
 use crate::{
-    zanzibar::{Consistency, Relation, Resource, Tuple, UntypedTuple, Zookie},
+    zanzibar::{Consistency, Object, Relation, Relationship, Resource, UntypedTuple, Zookie},
     NoAuthorization,
 };
 
@@ -35,7 +35,7 @@ pub trait ZanzibarBackend {
     /// Returns an error if the schema could not be read
     async fn export_schema(&self) -> Result<ExportSchemaResponse, Report<ExportSchemaError>>;
 
-    /// Creates a new relation specified by the [`Tuple`].
+    /// Creates a new relation specified by the [`Relationship`].
     ///
     /// # Errors
     ///
@@ -45,9 +45,10 @@ pub trait ZanzibarBackend {
         tuples: impl IntoIterator<Item = T, IntoIter: Send> + Send,
     ) -> impl Future<Output = Result<CreateRelationResponse, Report<CreateRelationError>>> + Send
     where
-        T: Tuple + Send + Sync;
+        T: Relationship + Send + Sync;
 
-    /// Creates a new relation specified by the [`Tuple`] but does not error if it already exists.
+    /// Creates a new relation specified by the [`Relationship`] but does not error if it already
+    /// exists.
     ///
     /// # Errors
     ///
@@ -57,9 +58,9 @@ pub trait ZanzibarBackend {
         tuples: impl IntoIterator<Item = T, IntoIter: Send> + Send,
     ) -> impl Future<Output = Result<CreateRelationResponse, Report<CreateRelationError>>> + Send
     where
-        T: Tuple + Send + Sync;
+        T: Relationship + Send + Sync;
 
-    /// Deletes the relation specified by the [`Tuple`].
+    /// Deletes the relation specified by the [`Relationship`].
     ///
     /// # Errors
     ///
@@ -69,10 +70,10 @@ pub trait ZanzibarBackend {
         tuples: impl IntoIterator<Item = T, IntoIter: Send> + Send,
     ) -> impl Future<Output = Result<DeleteRelationResponse, Report<DeleteRelationError>>> + Send
     where
-        T: Tuple + Send + Sync;
+        T: Relationship + Send + Sync;
 
-    /// Returns if the subject of the [`Tuple`] has the specified permission or relation to an
-    /// [`Resource`].
+    /// Returns if the subject of the [`Tuple`] has the specified permission or relation to
+    /// an [`Resource`].
     ///
     /// # Errors
     ///
@@ -89,28 +90,27 @@ pub trait ZanzibarBackend {
         consistency: Consistency<'_>,
     ) -> impl Future<Output = Result<CheckResponse, Report<CheckError>>> + Send
     where
-        T: Tuple + Sync;
+        T: Relationship + Sync;
 
     /// Returns the list of all relations matching the filter.
     ///
     /// # Errors
     ///
     /// Returns an error if the reading could not be performed.
-    fn read_relations<O, R, U, S>(
+    fn read_relations<O, R, U, S, T>(
         &self,
         object: Option<O>,
         relation: Option<R>,
         user: Option<U>,
         user_set: Option<S>,
         consistency: Consistency<'static>,
-    ) -> impl Future<Output = Result<Vec<(O, R, U, Option<S>)>, Report<ReadError>>> + Send
+    ) -> impl Future<Output = Result<Vec<T>, Report<ReadError>>> + Send
     where
-        O: Resource + From<O::Id> + Send + Sync,
-        O::Id: DeserializeOwned,
-        R: Relation<O> + Send + Sync + DeserializeOwned,
-        U: Resource + From<U::Id> + Send + Sync,
-        U::Id: DeserializeOwned,
-        S: Serialize + Send + Sync + DeserializeOwned;
+        O: Object + Send + Sync,
+        R: Relation<O> + Send + Sync,
+        U: Object + Send + Sync,
+        S: Serialize + Send + Sync,
+        T: Relationship;
 }
 
 impl ZanzibarBackend for NoAuthorization {
@@ -175,19 +175,20 @@ impl ZanzibarBackend for NoAuthorization {
         })
     }
 
-    async fn read_relations<O, R, U, S>(
+    async fn read_relations<O, R, U, S, T>(
         &self,
         _object: Option<O>,
         _relation: Option<R>,
         _user: Option<U>,
         _user_set: Option<S>,
         _consistency: Consistency<'static>,
-    ) -> Result<Vec<(O, R, U, Option<S>)>, Report<ReadError>>
+    ) -> Result<Vec<T>, Report<ReadError>>
     where
         O: Send,
         R: Send,
         U: Send,
         S: Send,
+        T: Send,
     {
         Ok(Vec::new())
     }

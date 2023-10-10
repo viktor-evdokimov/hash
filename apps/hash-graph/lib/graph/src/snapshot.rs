@@ -20,7 +20,10 @@ use async_scoped::TokioScope;
 use async_trait::async_trait;
 use authorization::{
     backend::ZanzibarBackend,
-    schema::{AccountGroupPermission, AccountGroupRelation, EntityRelation, OwnerId, WebRelation},
+    schema::{
+        AccountGroupAdmin, AccountGroupMember, AccountGroupOwner, AccountGroupPermission,
+        AccountGroupRelation, AccountGroupRelationship, EntityRelation, OwnerId, WebRelation,
+    },
     zanzibar::Consistency,
     AccountOrPublic, VisibilityScope,
 };
@@ -227,8 +230,8 @@ where
                 let mut owners = Vec::new();
                 let mut admins = Vec::new();
                 let mut members = Vec::new();
-                for (_group, relation, user, user_set) in authorization_api
-                    .read_relations::<AccountGroupId, AccountGroupRelation, AccountId, ()>(
+                for (_group, relation) in authorization_api
+                    .read_relations::<AccountGroupId, AccountGroupRelation, AccountId, !, (AccountGroupId, AccountGroupRelationship)>(
                         Some(id),
                         None,
                         None,
@@ -238,11 +241,10 @@ where
                     .await
                     .change_context(SnapshotDumpError::Query)?
                 {
-                    assert!(user_set.is_none());
                     match relation {
-                        AccountGroupRelation::DirectOwner => owners.push(user),
-                        AccountGroupRelation::DirectAdmin => admins.push(user),
-                        AccountGroupRelation::DirectMember => members.push(user),
+                        AccountGroupRelationship::DirectOwner(AccountGroupOwner::Account(user)) => owners.push(user),
+                        AccountGroupRelationship::DirectAdmin(AccountGroupAdmin::Account(user)) => admins.push(user),
+                        AccountGroupRelationship::DirectMember(AccountGroupMember::Account(user)) => members.push(user),
                     }
                 }
                 Ok(AccountGroup {
@@ -260,7 +262,7 @@ where
     ) -> Result<impl Stream<Item = Result<Web, SnapshotDumpError>> + Send + 'a, SnapshotDumpError>
     {
         let accounts = authorization_api
-            .read_relations::<WebId, WebRelation, AccountId, ()>(
+            .read_relations::<WebId, WebRelation, AccountId, (), (WebId, WebRelation, AccountId, Option<()>)>(
                 None,
                 None,
                 None,
@@ -287,13 +289,12 @@ where
             });
 
         let account_groups = authorization_api
-            .read_relations::<WebId, WebRelation, AccountGroupId, AccountGroupPermission>(
-                None,
-                None,
-                None,
-                None,
-                Consistency::FullyConsistent,
-            )
+            .read_relations::<WebId, WebRelation, AccountGroupId, AccountGroupPermission, (
+                WebId,
+                WebRelation,
+                AccountGroupId,
+                Option<AccountGroupPermission>,
+            )>(None, None, None, None, Consistency::FullyConsistent)
             .await
             .change_context(SnapshotDumpError::Query)?
             .into_iter()
@@ -430,7 +431,7 @@ where
                         let mut viewers = Vec::new();
 
                         for (_group, relation, account, _account_relation) in authorization_api
-                            .read_relations::<EntityUuid, EntityRelation, AccountOrPublic, ()>(
+                            .read_relations::<EntityUuid, EntityRelation, AccountOrPublic, (), (EntityUuid, EntityRelation, AccountOrPublic, Option<()>)>(
                                 Some(id),
                                 None,
                                 None,
@@ -454,7 +455,7 @@ where
                         }
 
                         for (_group, relation, account_group, account_group_permission) in authorization_api
-                            .read_relations::<EntityUuid, EntityRelation, AccountGroupId, AccountGroupPermission>(
+                            .read_relations::<EntityUuid, EntityRelation, AccountGroupId, AccountGroupPermission, (EntityUuid, EntityRelation, AccountGroupId, Option<AccountGroupPermission>)>(
                                 Some(id),
                                 None,
                                 None,

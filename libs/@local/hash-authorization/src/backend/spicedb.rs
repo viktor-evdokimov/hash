@@ -1,5 +1,7 @@
 mod api;
-mod model;
+pub mod model;
+mod serde;
+
 use std::fmt;
 
 use error_stack::Result;

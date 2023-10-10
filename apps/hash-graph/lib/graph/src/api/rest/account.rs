@@ -4,7 +4,11 @@
 
 use std::sync::Arc;
 
-use authorization::{zanzibar::Consistency, AuthorizationApi, AuthorizationApiPool};
+use authorization::{
+    schema::{AccountGroupAdmin, AccountGroupMember, AccountGroupOwner, AccountGroupPermission},
+    zanzibar::Consistency,
+    AuthorizationApi, AuthorizationApiPool,
+};
 use axum::{extract::Path, http::StatusCode, routing::post, Extension, Router};
 use graph_types::account::{AccountGroupId, AccountId};
 use utoipa::OpenApi;
@@ -29,7 +33,7 @@ use crate::{
         remove_account_group_member,
     ),
     components(
-        schemas(AccountId, AccountGroupId),
+        schemas(AccountId, AccountGroupId, AccountGroupPermission),
     ),
     tags(
         (name = "Account", description = "Account management API")
@@ -193,7 +197,12 @@ where
     })?;
 
     let has_permission = authorization_api
-        .can_add_group_owner(actor_id, account_group_id, Consistency::FullyConsistent)
+        .has_account_group_permission(
+            actor_id,
+            account_group_id,
+            AccountGroupPermission::AddOwner,
+            Consistency::FullyConsistent,
+        )
         .await
         .map_err(|error| {
             tracing::error!(
@@ -209,7 +218,7 @@ where
     }
 
     authorization_api
-        .add_account_group_owner(account_id, account_group_id)
+        .add_account_group_relation(account_group_id, AccountGroupOwner::Account(account_id))
         .await
         .map_err(|error| {
             tracing::error!(?error, "Could not add account group owner");
@@ -250,7 +259,12 @@ where
     })?;
 
     let has_permission = authorization_api
-        .can_remove_group_owner(actor_id, account_group_id, Consistency::FullyConsistent)
+        .has_account_group_permission(
+            actor_id,
+            account_group_id,
+            AccountGroupPermission::RemoveOwner,
+            Consistency::FullyConsistent,
+        )
         .await
         .map_err(|error| {
             tracing::error!(
@@ -266,7 +280,7 @@ where
     }
 
     authorization_api
-        .remove_account_group_owner(account_id, account_group_id)
+        .remove_account_group_relation(account_group_id, AccountGroupOwner::Account(account_id))
         .await
         .map_err(|error| {
             tracing::error!(?error, "Could not remove account group owner");
@@ -307,7 +321,12 @@ where
     })?;
 
     let has_permission = authorization_api
-        .can_add_group_admin(actor_id, account_group_id, Consistency::FullyConsistent)
+        .has_account_group_permission(
+            actor_id,
+            account_group_id,
+            AccountGroupPermission::AddAdmin,
+            Consistency::FullyConsistent,
+        )
         .await
         .map_err(|error| {
             tracing::error!(
@@ -323,7 +342,7 @@ where
     }
 
     authorization_api
-        .add_account_group_admin(account_id, account_group_id)
+        .add_account_group_relation(account_group_id, AccountGroupAdmin::Account(account_id))
         .await
         .map_err(|error| {
             tracing::error!(?error, "Could not add account group admin");
@@ -364,7 +383,12 @@ where
     })?;
 
     let has_permission = authorization_api
-        .can_remove_group_admin(actor_id, account_group_id, Consistency::FullyConsistent)
+        .has_account_group_permission(
+            actor_id,
+            account_group_id,
+            AccountGroupPermission::RemoveAdmin,
+            Consistency::FullyConsistent,
+        )
         .await
         .map_err(|error| {
             tracing::error!(
@@ -380,7 +404,7 @@ where
     }
 
     authorization_api
-        .remove_account_group_admin(account_id, account_group_id)
+        .remove_account_group_relation(account_group_id, AccountGroupAdmin::Account(account_id))
         .await
         .map_err(|error| {
             tracing::error!(?error, "Could not remove account group admin");
@@ -421,7 +445,12 @@ where
     })?;
 
     let has_permission = authorization_api
-        .can_add_group_member(actor_id, account_group_id, Consistency::FullyConsistent)
+        .has_account_group_permission(
+            actor_id,
+            account_group_id,
+            AccountGroupPermission::AddMember,
+            Consistency::FullyConsistent,
+        )
         .await
         .map_err(|error| {
             tracing::error!(
@@ -437,7 +466,7 @@ where
     }
 
     authorization_api
-        .add_account_group_member(account_id, account_group_id)
+        .add_account_group_relation(account_group_id, AccountGroupMember::Account(account_id))
         .await
         .map_err(|error| {
             tracing::error!(?error, "Could not add account group member");
@@ -478,7 +507,12 @@ where
     })?;
 
     let has_permission = authorization_api
-        .can_remove_group_member(actor_id, account_group_id, Consistency::FullyConsistent)
+        .has_account_group_permission(
+            actor_id,
+            account_group_id,
+            AccountGroupPermission::RemoveMember,
+            Consistency::FullyConsistent,
+        )
         .await
         .map_err(|error| {
             tracing::error!(
@@ -494,7 +528,7 @@ where
     }
 
     authorization_api
-        .remove_account_group_member(account_id, account_group_id)
+        .remove_account_group_relation(account_group_id, AccountGroupMember::Account(account_id))
         .await
         .map_err(|error| {
             tracing::error!(?error, "Could not remove account group member");

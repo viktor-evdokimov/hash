@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     backend::{CheckError, CheckResponse, ModifyRelationError},
-    schema::{OwnerId, PublicAccess},
+    schema::{AccountGroupPermission, AccountGroupRelationship, PublicAccess},
     zanzibar::{Consistency, Resource, Zookie},
 };
 
@@ -65,185 +65,134 @@ pub trait AuthorizationApi {
     ////////////////////////////////////////////////////////////////////////////
     // Account group authorization
     ////////////////////////////////////////////////////////////////////////////
-    fn can_add_group_owner(
+    fn has_account_group_permission(
         &self,
         actor: AccountId,
         account_group: AccountGroupId,
+        permission: AccountGroupPermission,
         consistency: Consistency<'_>,
     ) -> impl Future<Output = Result<CheckResponse, CheckError>> + Send;
-    fn add_account_group_owner(
+
+    fn add_account_group_relation(
         &mut self,
-        member: AccountId,
         account_group: AccountGroupId,
+        relation: impl Into<AccountGroupRelationship> + Send,
     ) -> impl Future<Output = Result<Zookie<'static>, ModifyRelationError>> + Send;
 
-    fn can_remove_group_owner(
-        &self,
-        actor: AccountId,
-        account_group: AccountGroupId,
-        consistency: Consistency<'_>,
-    ) -> impl Future<Output = Result<CheckResponse, CheckError>> + Send;
-    fn remove_account_group_owner(
+    fn remove_account_group_relation(
         &mut self,
-        member: AccountId,
         account_group: AccountGroupId,
-    ) -> impl Future<Output = Result<Zookie<'static>, ModifyRelationError>> + Send;
-
-    fn can_add_group_admin(
-        &self,
-        actor: AccountId,
-        account_group: AccountGroupId,
-        consistency: Consistency<'_>,
-    ) -> impl Future<Output = Result<CheckResponse, CheckError>> + Send;
-    fn add_account_group_admin(
-        &mut self,
-        member: AccountId,
-        account_group: AccountGroupId,
-    ) -> impl Future<Output = Result<Zookie<'static>, ModifyRelationError>> + Send;
-
-    fn can_remove_group_admin(
-        &self,
-        actor: AccountId,
-        account_group: AccountGroupId,
-        consistency: Consistency<'_>,
-    ) -> impl Future<Output = Result<CheckResponse, CheckError>> + Send;
-    fn remove_account_group_admin(
-        &mut self,
-        member: AccountId,
-        account_group: AccountGroupId,
-    ) -> impl Future<Output = Result<Zookie<'static>, ModifyRelationError>> + Send;
-
-    fn can_add_group_member(
-        &self,
-        actor: AccountId,
-        account_group: AccountGroupId,
-        consistency: Consistency<'_>,
-    ) -> impl Future<Output = Result<CheckResponse, CheckError>> + Send;
-    fn add_account_group_member(
-        &mut self,
-        member: AccountId,
-        account_group: AccountGroupId,
-    ) -> impl Future<Output = Result<Zookie<'static>, ModifyRelationError>> + Send;
-
-    fn can_remove_group_member(
-        &self,
-        actor: AccountId,
-        account_group: AccountGroupId,
-        consistency: Consistency<'_>,
-    ) -> impl Future<Output = Result<CheckResponse, CheckError>> + Send;
-    fn remove_account_group_member(
-        &mut self,
-        member: AccountId,
-        account_group: AccountGroupId,
+        relation: impl Into<AccountGroupRelationship> + Send,
     ) -> impl Future<Output = Result<Zookie<'static>, ModifyRelationError>> + Send;
 
     ////////////////////////////////////////////////////////////////////////////
     // Web authorization
     ////////////////////////////////////////////////////////////////////////////
-    fn add_web_owner(
-        &mut self,
-        owner: OwnerId,
-        web: WebId,
-    ) -> impl Future<Output = Result<Zookie<'static>, ModifyRelationError>> + Send;
-
-    fn remove_web_owner(
-        &mut self,
-        owner: OwnerId,
-        web: WebId,
-    ) -> impl Future<Output = Result<Zookie<'static>, ModifyRelationError>> + Send;
-
-    fn add_web_editor(
-        &mut self,
-        editor: OwnerId,
-        web: WebId,
-    ) -> impl Future<Output = Result<Zookie<'static>, ModifyRelationError>> + Send;
-
-    fn remove_web_editor(
-        &mut self,
-        editor: OwnerId,
-        web: WebId,
-    ) -> impl Future<Output = Result<Zookie<'static>, ModifyRelationError>> + Send;
-
-    fn can_create_entity(
-        &self,
-        actor: AccountId,
-        namespace: impl Into<WebId> + Send,
-        consistency: Consistency<'_>,
-    ) -> impl Future<Output = Result<CheckResponse, CheckError>> + Send;
+    // fn add_web_owner(
+    //     &mut self,
+    //     owner: OwnerId,
+    //     web: WebId,
+    // ) -> impl Future<Output = Result<Zookie<'static>, ModifyRelationError>> + Send;
+    //
+    // fn remove_web_owner(
+    //     &mut self,
+    //     owner: OwnerId,
+    //     web: WebId,
+    // ) -> impl Future<Output = Result<Zookie<'static>, ModifyRelationError>> + Send;
+    //
+    // fn add_web_editor(
+    //     &mut self,
+    //     editor: OwnerId,
+    //     web: WebId,
+    // ) -> impl Future<Output = Result<Zookie<'static>, ModifyRelationError>> + Send;
+    //
+    // fn remove_web_editor(
+    //     &mut self,
+    //     editor: OwnerId,
+    //     web: WebId,
+    // ) -> impl Future<Output = Result<Zookie<'static>, ModifyRelationError>> + Send;
 
     ////////////////////////////////////////////////////////////////////////////
     // Entity authorization
     ////////////////////////////////////////////////////////////////////////////
-    fn add_entity_owner(
-        &mut self,
-        scope: OwnerId,
-        entity: EntityId,
-    ) -> impl Future<Output = Result<Zookie<'static>, ModifyRelationError>> + Send;
-    fn remove_entity_owner(
-        &mut self,
-        scope: OwnerId,
-        entity: EntityId,
-    ) -> impl Future<Output = Result<Zookie<'static>, ModifyRelationError>> + Send;
+    // fn can_create_entity(
+    //     &self,
+    //     actor: AccountId,
+    //     namespace: impl Into<WebId> + Send,
+    //     consistency: Consistency<'_>,
+    // ) -> impl Future<Output = Result<CheckResponse, CheckError>> + Send;
+    //
+    // fn add_entity_owner(
+    //     &mut self,
+    //     scope: OwnerId,
+    //     entity: EntityId,
+    // ) -> impl Future<Output = Result<Zookie<'static>, ModifyRelationError>> + Send;
+    // fn remove_entity_owner(
+    //     &mut self,
+    //     scope: OwnerId,
+    //     entity: EntityId,
+    // ) -> impl Future<Output = Result<Zookie<'static>, ModifyRelationError>> + Send;
+    //
+    // fn add_entity_editor(
+    //     &mut self,
+    //     scope: OwnerId,
+    //     entity: EntityId,
+    // ) -> impl Future<Output = Result<Zookie<'static>, ModifyRelationError>> + Send;
+    // fn remove_entity_editor(
+    //     &mut self,
+    //     scope: OwnerId,
+    //     entity: EntityId,
+    // ) -> impl Future<Output = Result<Zookie<'static>, ModifyRelationError>> + Send;
+    //
+    // fn add_entity_viewer(
+    //     &mut self,
+    //     scope: VisibilityScope,
+    //     entity: EntityId,
+    // ) -> impl Future<Output = Result<Zookie<'static>, ModifyRelationError>> + Send;
+    // fn remove_entity_viewer(
+    //     &mut self,
+    //     scope: VisibilityScope,
+    //     entity: EntityId,
+    // ) -> impl Future<Output = Result<Zookie<'static>, ModifyRelationError>> + Send;
 
-    fn add_entity_editor(
-        &mut self,
-        scope: OwnerId,
-        entity: EntityId,
-    ) -> impl Future<Output = Result<Zookie<'static>, ModifyRelationError>> + Send;
-    fn remove_entity_editor(
-        &mut self,
-        scope: OwnerId,
-        entity: EntityId,
-    ) -> impl Future<Output = Result<Zookie<'static>, ModifyRelationError>> + Send;
-
-    fn add_entity_viewer(
-        &mut self,
-        scope: VisibilityScope,
-        entity: EntityId,
-    ) -> impl Future<Output = Result<Zookie<'static>, ModifyRelationError>> + Send;
-    fn remove_entity_viewer(
-        &mut self,
-        scope: VisibilityScope,
-        entity: EntityId,
-    ) -> impl Future<Output = Result<Zookie<'static>, ModifyRelationError>> + Send;
-
-    fn can_update_entity(
-        &self,
-        actor: AccountId,
-        entity: EntityId,
-        consistency: Consistency<'_>,
-    ) -> impl Future<Output = Result<CheckResponse, CheckError>> + Send;
-
-    fn can_view_entity(
-        &self,
-        actor: AccountId,
-        entity: EntityId,
-        consistency: Consistency<'_>,
-    ) -> impl Future<Output = Result<CheckResponse, CheckError>> + Send;
-
-    fn can_view_entities(
-        &self,
-        actor: AccountId,
-        entities: impl IntoIterator<Item = EntityId, IntoIter: Send> + Send,
-        consistency: Consistency<'_>,
-    ) -> impl Future<Output = Result<(HashMap<EntityId, bool>, Zookie<'static>), CheckError>> + Send
-    where
-        Self: Sync,
-    {
-        async move {
-            let mut zookie = Zookie::empty();
-            let mut result = HashMap::new();
-            for entity_id in entities {
-                let CheckResponse {
-                    has_permission,
-                    checked_at,
-                } = self.can_view_entity(actor, entity_id, consistency).await?;
-                result.insert(entity_id, has_permission);
-                zookie = checked_at;
-            }
-            Ok((result, zookie))
-        }
-    }
+    // fn can_update_entity(
+    //     &self,
+    //     actor: AccountId,
+    //     entity: EntityId,
+    //     consistency: Consistency<'_>,
+    // ) -> impl Future<Output = Result<CheckResponse, CheckError>> + Send;
+    //
+    // fn can_view_entity(
+    //     &self,
+    //     actor: AccountId,
+    //     entity: EntityId,
+    //     consistency: Consistency<'_>,
+    // ) -> impl Future<Output = Result<CheckResponse, CheckError>> + Send;
+    //
+    // fn can_view_entities(
+    //     &self,
+    //     actor: AccountId,
+    //     entities: impl IntoIterator<Item = EntityId, IntoIter: Send> + Send,
+    //     consistency: Consistency<'_>,
+    // ) -> impl Future<Output = Result<(HashMap<EntityId, bool>, Zookie<'static>), CheckError>> +
+    //   Send
+    // where
+    //     Self: Sync,
+    // {
+    //     async move {
+    //         let mut zookie = Zookie::empty();
+    //         let mut result = HashMap::new();
+    //         for entity_id in entities {
+    //             let CheckResponse {
+    //                 has_permission,
+    //                 checked_at,
+    //             } = self.can_view_entity(actor, entity_id, consistency).await?;
+    //             result.insert(entity_id, has_permission);
+    //             zookie = checked_at;
+    //         }
+    //         Ok((result, zookie))
+    //     }
+    // }
 }
 
 /// Managed pool to keep track about [`AuthorizationApi`]s.

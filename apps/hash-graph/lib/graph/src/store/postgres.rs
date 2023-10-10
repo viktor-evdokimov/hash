@@ -7,7 +7,10 @@ mod query;
 mod traversal_context;
 
 use async_trait::async_trait;
-use authorization::{schema::OwnerId, AuthorizationApi, VisibilityScope};
+use authorization::{
+    schema::{AccountGroupOwner, OwnerId},
+    AuthorizationApi, VisibilityScope,
+};
 use error_stack::{Report, Result, ResultExt};
 #[cfg(hash_graph_test_environment)]
 use graph_types::knowledge::{
@@ -1323,7 +1326,7 @@ impl<C: AsClient> AccountStore for PostgresStore<C> {
             .attach_printable(account_group_id)?;
 
         authorization_api
-            .add_account_group_owner(actor_id, account_group_id)
+            .add_account_group_relation(account_group_id, AccountGroupOwner::Account(actor_id))
             .await
             .change_context(InsertionError)?;
 
@@ -1337,7 +1340,10 @@ impl<C: AsClient> AccountStore for PostgresStore<C> {
 
         if let Err(mut error) = transaction.commit().await.change_context(InsertionError) {
             if let Err(auth_error) = authorization_api
-                .remove_account_group_owner(actor_id, account_group_id)
+                .remove_account_group_relation(
+                    account_group_id,
+                    AccountGroupOwner::Account(actor_id),
+                )
                 .await
                 .change_context(InsertionError)
             {
