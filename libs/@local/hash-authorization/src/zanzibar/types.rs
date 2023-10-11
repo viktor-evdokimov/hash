@@ -9,7 +9,7 @@ mod object;
 mod subject;
 
 use core::fmt;
-use std::{borrow::Cow, fmt::Display};
+use std::{borrow::Cow, error::Error, fmt::Display};
 
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
@@ -165,59 +165,54 @@ impl<O: ObjectFilter> Permission<O> for ! {}
 impl<O: ObjectFilter> RelationFilter<O> for ! {}
 impl<O: Object> Relation<O> for ! {}
 
-pub trait Relationship: Sized + Send {
-    type Error: Display;
-    type Object: Object;
-    type Relation: Affiliation<Self::Object>;
-    type Subject: Subject;
+pub trait Relationship<O: Object>: Sized + Send {
+    type Relation: Affiliation<O>;
+    type Subject: Object;
+    type SubjectSet: Affiliation<Self::Subject>;
 
-    fn from_tuple(
-        object: Self::Object,
+    fn new(
         relation: Self::Relation,
         subject: Self::Subject,
-    ) -> Result<Self, Self::Error>;
+        subject_set: Option<Self::SubjectSet>,
+    ) -> Result<Self, impl Error>;
 
-    fn as_tuple(&self) -> (&Self::Object, &Self::Relation, &Self::Subject);
+    fn as_tuple(&self) -> (&Self::Relation, &Self::Subject, &Self::SubjectSet);
 
-    /// Returns the underlying [`Object`] of this `Relationship`.
-    fn object(&self) -> &Self::Object {
+    fn relation(&self) -> &Self::Relation {
         self.as_tuple().0
     }
 
-    /// Returns the [`Relation`] of this `Relationship`.
-    fn relation(&self) -> &Self::Relation {
+    fn subject(&self) -> &Self::Subject {
         self.as_tuple().1
     }
 
-    /// Returns the [`Subject`] of this `Relationship`.
-    fn subject(&self) -> &Self::Subject {
+    fn subject_set(&self) -> &Self::SubjectSet {
         self.as_tuple().2
     }
 }
 
-impl<O, R, S> Relationship for (O, R, S)
-where
-    O: Object,
-    R: Affiliation<O>,
-    S: Subject,
-{
-    type Error = !;
-    type Object = O;
-    type Relation = R;
-    type Subject = S;
-
-    fn from_tuple(
-        object: Self::Object,
-        relation: Self::Relation,
-        subject: Self::Subject,
-    ) -> Result<Self, Self::Error> {
-        Ok((object, relation, subject))
-    }
-
-    fn as_tuple(&self) -> (&Self::Object, &Self::Relation, &Self::Subject) {
-        (&self.0, &self.1, &self.2)
-    }
-}
+// impl<O, R, S> Relationship for (O, R, S)
+// where
+//     O: Object,
+//     R: Affiliation<O>,
+//     S: Subject,
+// {
+//     type Error = !;
+//     type Object = O;
+//     type Relation = R;
+//     type Subject = S;
+//
+//     fn new(
+//         object: Self::Object,
+//         relation: Self::Relation,
+//         subject: Self::Subject,
+//     ) -> Result<Self, Self::Error> { Ok((object, relation, subject))
+//     }
+//
+//     fn as_tuple(&self) -> (&Self::Object, &Self::Relation, &Self::Subject) {
+//         (&self.0, &self.1, &self.2)
+//     }
+// }
 
 // impl<O, R, S, SR> Relationship for (O, R, S, SR)
 // where

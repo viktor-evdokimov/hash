@@ -49,9 +49,10 @@ where
         permission: AccountGroupPermission,
         consistency: Consistency<'_>,
     ) -> Result<CheckResponse, CheckError> {
-        self.backend
-            .check(&(account_group, permission, actor), consistency)
-            .await
+        // self.backend
+        //     .check(&(account_group, permission, actor), consistency)
+        //     .await
+        todo!()
     }
 
     async fn add_account_group_relation(

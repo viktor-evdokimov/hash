@@ -81,23 +81,23 @@ where
     }
 }
 
-impl<O> Subject for O
-where
-    O: Object,
-{
-    type Error = !;
-    type Object = O;
-    type Relation = !;
-
-    fn new(object: Self::Object, _relation: Option<!>) -> Result<Self, Self::Error> {
-        Ok(object)
-    }
-
-    fn object(&self) -> &Self::Object {
-        self
-    }
-
-    fn set(&self) -> Option<&Self::Relation> {
-        None
-    }
-}
+// impl<O> Subject for O
+// where
+//     O: Object,
+// {
+//     type Error = !;
+//     type Object = O;
+//     type Relation = !;
+//
+//     fn new(object: Self::Object, _relation: Option<!>) -> Result<Self, Self::Error> {
+//         Ok(object)
+//     }
+//
+//     fn object(&self) -> &Self::Object {
+//         self
+//     }
+//
+//     fn set(&self) -> Option<&Self::Relation> {
+//         None
+//     }
+// }

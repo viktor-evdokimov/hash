@@ -9,6 +9,10 @@ use crate::zanzibar::{
     Affiliation, Object, ObjectFilter, Permission, Relation, Relationship, Resource, Subject,
 };
 
+// impl Subject for Actor {
+//     type Object = Account
+// }
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AccountGroupNamespace {
     #[serde(rename = "graph/account_group")]
@@ -65,49 +69,34 @@ impl Relationship for (AccountGroupId, AccountGroupSubject) {
 
     type Relation = impl Relation<Self::Object> + Serialize + DeserializeOwned;
 
-    fn from_tuple(
+    fn new(
         object: Self::Object,
-        relation: Self::Relation,
+        _relation: Self::Relation,
         subject: Self::Subject,
     ) -> Result<Self, Self::Error> {
-        Ok((
-            object,
-            match relation {
-                AccountGroupRelation::DirectOwner => {
-                    AccountGroupSubject::DirectOwner(AccountGroupOwner::Account(subject))
-                }
-                AccountGroupRelation::DirectAdmin => {
-                    AccountGroupSubject::DirectAdmin(AccountGroupAdmin::Account(subject))
-                }
-                AccountGroupRelation::DirectMember => {
-                    AccountGroupSubject::DirectMember(AccountGroupMember::Account(subject))
-                }
-            },
-        ))
+        Ok((object, subject))
     }
 
     fn as_tuple(&self) -> (&Self::Object, &Self::Relation, &Self::Subject) {
         match &self.1 {
-            AccountGroupSubject::DirectOwner(AccountGroupOwner::Account(account_id)) => (
-                self.object(),
-                &AccountGroupRelation::DirectOwner,
-                account_id,
-            ),
-            AccountGroupSubject::DirectAdmin(AccountGroupAdmin::Account(account_id)) => (
-                self.object(),
-                &AccountGroupRelation::DirectAdmin,
-                account_id,
-            ),
-            AccountGroupSubject::DirectMember(AccountGroupMember::Account(account_id)) => (
-                self.object(),
-                &AccountGroupRelation::DirectMember,
-                account_id,
-            ),
+            AccountGroupSubject::DirectOwner(_) => {
+                (self.object(), &AccountGroupRelation::DirectOwner, &self.1)
+            }
+            AccountGroupSubject::DirectAdmin(_) => {
+                (self.object(), &AccountGroupRelation::DirectAdmin, &self.1)
+            }
+            AccountGroupSubject::DirectMember(_) => {
+                (self.object(), &AccountGroupRelation::DirectMember, &self.1)
+            }
         }
     }
 
     fn object(&self) -> &Self::Object {
         &self.0
+    }
+
+    fn subject(&self) -> &Self::Subject {
+        &self.1
     }
 }
 
@@ -121,11 +110,13 @@ pub enum AccountGroupSubject {
 
 impl Object for AccountGroupSubject {
     type Error = !;
-    type Id = ;
+    type Id = Self;
     type Namespace = AccountGroupNamespace;
 
     fn new(namespace: Self::Namespace, id: Self::Id) -> Result<Self, Self::Error> {
-        todo!()
+        match namespace {
+            AccountGroupNamespace::AccountGroup => Ok(id),
+        }
     }
 
     fn namespace(&self) -> &Self::Namespace {
@@ -133,7 +124,7 @@ impl Object for AccountGroupSubject {
     }
 
     fn id(&self) -> &Self::Id {
-        todo!()
+        self
     }
 }
 

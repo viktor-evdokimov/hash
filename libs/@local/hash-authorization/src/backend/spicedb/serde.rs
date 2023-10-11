@@ -184,7 +184,7 @@ pub(crate) mod relationship {
 
         let relationship =
             RelationshipReference::<T::Object, T::Relation, T::Subject>::deserialize(deserializer)?;
-        T::from_tuple(
+        T::new(
             relationship.resource,
             relationship.relation,
             relationship.subject,
