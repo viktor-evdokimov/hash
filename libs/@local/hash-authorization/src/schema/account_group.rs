@@ -9,36 +9,29 @@ use crate::zanzibar::{
     Affiliation, Object, ObjectFilter, Permission, Relation, Relationship, Resource, Subject,
 };
 
-impl Resource for AccountGroupId {
-    type Id = Self;
-
-    fn namespace() -> &'static str {
-        "graph/account_group"
-    }
-
-    fn id(&self) -> Self::Id {
-        *self
-    }
-}
-
-impl ObjectFilter for AccountGroupId {
-    type Id = Self;
-    type Namespace = Cow<'static, str>;
-
-    fn namespace(&self) -> &Self::Namespace {
-        &Cow::Borrowed("graph/account_group")
-    }
-
-    fn id(&self) -> &Self::Id {
-        self
-    }
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AccountGroupNamespace {
+    #[serde(rename = "graph/account_group")]
+    AccountGroup,
 }
 
 impl Object for AccountGroupId {
     type Error = !;
+    type Id = Self;
+    type Namespace = AccountGroupNamespace;
 
     fn new(namespace: Self::Namespace, id: Self::Id) -> Result<Self, Self::Error> {
-        todo!()
+        match namespace {
+            AccountGroupNamespace::AccountGroup => Ok(id),
+        }
+    }
+
+    fn namespace(&self) -> &Self::Namespace {
+        &AccountGroupNamespace::AccountGroup
+    }
+
+    fn id(&self) -> &Self::Id {
+        self
     }
 }
 
@@ -59,17 +52,18 @@ pub enum AccountGroupMember {
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum AccountGroupRelation {
+enum AccountGroupRelation {
     DirectOwner,
     DirectAdmin,
     DirectMember,
 }
 
-impl Relationship for (AccountGroupId, AccountGroupRelationship) {
+impl Relationship for (AccountGroupId, AccountGroupSubject) {
     type Error = !;
     type Object = AccountGroupId;
-    type Relation = AccountGroupRelation;
-    type Subject = AccountId;
+    type Subject = AccountGroupSubject;
+
+    type Relation = impl Relation<Self::Object> + Serialize + DeserializeOwned;
 
     fn from_tuple(
         object: Self::Object,
@@ -80,13 +74,13 @@ impl Relationship for (AccountGroupId, AccountGroupRelationship) {
             object,
             match relation {
                 AccountGroupRelation::DirectOwner => {
-                    AccountGroupRelationship::DirectOwner(AccountGroupOwner::Account(subject))
+                    AccountGroupSubject::DirectOwner(AccountGroupOwner::Account(subject))
                 }
                 AccountGroupRelation::DirectAdmin => {
-                    AccountGroupRelationship::DirectAdmin(AccountGroupAdmin::Account(subject))
+                    AccountGroupSubject::DirectAdmin(AccountGroupAdmin::Account(subject))
                 }
                 AccountGroupRelation::DirectMember => {
-                    AccountGroupRelationship::DirectMember(AccountGroupMember::Account(subject))
+                    AccountGroupSubject::DirectMember(AccountGroupMember::Account(subject))
                 }
             },
         ))
@@ -94,17 +88,17 @@ impl Relationship for (AccountGroupId, AccountGroupRelationship) {
 
     fn as_tuple(&self) -> (&Self::Object, &Self::Relation, &Self::Subject) {
         match &self.1 {
-            AccountGroupRelationship::DirectOwner(AccountGroupOwner::Account(account_id)) => (
+            AccountGroupSubject::DirectOwner(AccountGroupOwner::Account(account_id)) => (
                 self.object(),
                 &AccountGroupRelation::DirectOwner,
                 account_id,
             ),
-            AccountGroupRelationship::DirectAdmin(AccountGroupAdmin::Account(account_id)) => (
+            AccountGroupSubject::DirectAdmin(AccountGroupAdmin::Account(account_id)) => (
                 self.object(),
                 &AccountGroupRelation::DirectAdmin,
                 account_id,
             ),
-            AccountGroupRelationship::DirectMember(AccountGroupMember::Account(account_id)) => (
+            AccountGroupSubject::DirectMember(AccountGroupMember::Account(account_id)) => (
                 self.object(),
                 &AccountGroupRelation::DirectMember,
                 account_id,
@@ -119,30 +113,48 @@ impl Relationship for (AccountGroupId, AccountGroupRelationship) {
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum AccountGroupRelationship {
+pub enum AccountGroupSubject {
     DirectOwner(AccountGroupOwner),
     DirectAdmin(AccountGroupAdmin),
     DirectMember(AccountGroupMember),
 }
 
-pub struct AccountGroupTuple {
-    pub object: AccountGroupId,
-    pub subject: AccountGroupRelationship,
+impl Object for AccountGroupSubject {
+    type Error = !;
+    type Id = ;
+    type Namespace = AccountGroupNamespace;
+
+    fn new(namespace: Self::Namespace, id: Self::Id) -> Result<Self, Self::Error> {
+        todo!()
+    }
+
+    fn namespace(&self) -> &Self::Namespace {
+        &AccountGroupNamespace::AccountGroup
+    }
+
+    fn id(&self) -> &Self::Id {
+        todo!()
+    }
 }
 
-impl From<AccountGroupOwner> for AccountGroupRelationship {
+pub struct AccountGroupTuple {
+    pub object: AccountGroupId,
+    pub subject: AccountGroupSubject,
+}
+
+impl From<AccountGroupOwner> for AccountGroupSubject {
     fn from(owner: AccountGroupOwner) -> Self {
         Self::DirectOwner(owner)
     }
 }
 
-impl From<AccountGroupAdmin> for AccountGroupRelationship {
+impl From<AccountGroupAdmin> for AccountGroupSubject {
     fn from(admin: AccountGroupAdmin) -> Self {
         Self::DirectAdmin(admin)
     }
 }
 
-impl From<AccountGroupMember> for AccountGroupRelationship {
+impl From<AccountGroupMember> for AccountGroupSubject {
     fn from(member: AccountGroupMember) -> Self {
         Self::DirectMember(member)
     }

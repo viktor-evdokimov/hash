@@ -10,8 +10,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     backend::{CheckError, CheckResponse, ModifyRelationError},
-    schema::{AccountGroupPermission, AccountGroupRelationship, PublicAccess},
-    zanzibar::{Consistency, Resource, Zookie},
+    schema::{AccountGroupPermission, AccountGroupSubject, PublicAccess},
+    zanzibar::{Consistency, Object, Resource, Zookie},
 };
 
 // TODO: Replace with something permission specific which can directly be reused once permissions
@@ -49,18 +49,6 @@ impl fmt::Display for AccountOrPublic {
     }
 }
 
-impl Resource for AccountOrPublic {
-    type Id = Self;
-
-    fn namespace() -> &'static str {
-        AccountId::namespace()
-    }
-
-    fn id(&self) -> Self::Id {
-        *self
-    }
-}
-
 pub trait AuthorizationApi {
     ////////////////////////////////////////////////////////////////////////////
     // Account group authorization
@@ -76,13 +64,13 @@ pub trait AuthorizationApi {
     fn add_account_group_relation(
         &mut self,
         account_group: AccountGroupId,
-        relation: impl Into<AccountGroupRelationship> + Send,
+        relation: impl Into<AccountGroupSubject> + Send,
     ) -> impl Future<Output = Result<Zookie<'static>, ModifyRelationError>> + Send;
 
     fn remove_account_group_relation(
         &mut self,
         account_group: AccountGroupId,
-        relation: impl Into<AccountGroupRelationship> + Send,
+        relation: impl Into<AccountGroupSubject> + Send,
     ) -> impl Future<Output = Result<Zookie<'static>, ModifyRelationError>> + Send;
 
     ////////////////////////////////////////////////////////////////////////////

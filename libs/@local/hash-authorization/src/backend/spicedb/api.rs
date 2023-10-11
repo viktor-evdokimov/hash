@@ -17,8 +17,9 @@ use crate::{
         ImportSchemaError, ImportSchemaResponse, ReadError, SpiceDbOpenApi, ZanzibarBackend,
     },
     zanzibar::{
-        types::RelationFilter, Consistency, Object, ObjectFilter, Relation, Relationship, Resource,
-        Subject, UntypedTuple, Zookie,
+        types::{RelationFilter, SubjectFilter},
+        Consistency, Filter, Object, ObjectFilter, Relation, Relationship, Resource, Subject,
+        UntypedTuple, Zookie,
     },
 };
 
@@ -365,19 +366,15 @@ impl ZanzibarBackend for SpiceDbOpenApi {
         clippy::missing_errors_doc,
         reason = "False positive, documented on trait"
     )]
-    async fn read_relations<O, R, U, S, T>(
+    async fn read_relations<O, R, S, T>(
         &self,
-        object: Option<O>,
-        relation: Option<R>,
-        user: Option<U>,
-        user_set: Option<S>,
+        filter: Filter<'_, O, R, S>,
         consistency: Consistency<'static>,
     ) -> Result<Vec<T>, Report<ReadError>>
     where
-        O: ObjectFilter + Send + Sync,
+        O: Object + Send + Sync,
         R: RelationFilter<O> + Send + Sync,
-        U: ObjectFilter + Send + Sync,
-        S: RelationFilter<U> + Send + Sync,
+        S: SubjectFilter + Send + Sync,
         for<'de> T: Relationship<
                 Object: Object<Namespace: Deserialize<'de>, Id: Deserialize<'de>>,
                 Relation: Deserialize<'de>,
@@ -390,29 +387,27 @@ impl ZanzibarBackend for SpiceDbOpenApi {
         #[derive(Serialize)]
         #[serde(
             rename_all = "camelCase",
-            bound = "O: ObjectFilter, R: Serialize, U: ObjectFilter, S: Serialize"
+            bound = "O: ObjectFilter, R: RelationFilter<O>, S: SubjectFilter"
         )]
-        struct ReadRelationshipsRequest<O, R, U, S> {
+        struct ReadRelationshipsRequest<'f, O, R, S> {
             consistency: model::Consistency<'static>,
-            relationship_filter: RelationshipFilter<O, R, U, S>,
+            relationship_filter: RelationshipFilter<'f, O, R, S>,
         }
 
-        struct SubjectFilter<U, S> {
-            user: Option<U>,
-            user_set: Option<S>,
-        }
+        struct SubjectFilterReference<'f, F>(&'f F);
 
-        impl<U: ObjectFilter, R: Serialize> Serialize for SubjectFilter<U, R> {
+        impl<F: SubjectFilter> Serialize for SubjectFilterReference<'_, F> {
             fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
             where
                 S: Serializer,
             {
                 let mut ser = serializer.serialize_struct("SubjectFilter", 3)?;
-                ser.serialize_field("subjectType", self.user.as_ref().unwrap().namespace())?;
-                if let Some(user) = &self.user {
-                    ser.serialize_field("optionalSubjectId", user.id())?;
+                let object = self.0.object();
+                ser.serialize_field("subjectType", object.namespace())?;
+                if let Some(id) = object.id() {
+                    ser.serialize_field("optionalSubjectId", id)?;
                 }
-                if let Some(relation) = &self.user_set {
+                if let Some(relation) = &self.0.set() {
                     ser.serialize_field("optionalRelation", relation)?;
                 }
 
@@ -420,28 +415,30 @@ impl ZanzibarBackend for SpiceDbOpenApi {
             }
         }
 
-        struct RelationshipFilter<O, R, U, S> {
-            object: Option<O>,
-            relation: Option<R>,
-            subject: SubjectFilter<U, S>,
+        struct RelationshipFilter<'f, O, R, S> {
+            filter: Filter<'f, O, R, S>,
         }
 
-        impl<O: ObjectFilter, R: Serialize, U: ObjectFilter, S: Serialize> Serialize
-            for RelationshipFilter<O, R, U, S>
+        impl<O: ObjectFilter, R: RelationFilter<O>, S: SubjectFilter> Serialize
+            for RelationshipFilter<'_, O, R, S>
         {
             fn serialize<Ser>(&self, serializer: Ser) -> Result<Ser::Ok, Ser::Error>
             where
                 Ser: Serializer,
             {
                 let mut ser = serializer.serialize_struct("RelationshipFilter", 4)?;
-                ser.serialize_field("resourceType", self.object.as_ref().unwrap().namespace())?;
-                if let Some(object) = &self.object {
-                    ser.serialize_field("optionalResourceId", object.id())?;
+                if let Some(object) = self.filter.object() {
+                    ser.serialize_field("resourceType", object.namespace())?;
+                    if let Some(id) = object.id() {
+                        ser.serialize_field("optionalResourceId", id)?;
+                    }
                 }
-                if let Some(relation) = &self.relation {
+                if let Some(relation) = self.filter.affiliation() {
                     ser.serialize_field("optionalRelation", relation)?;
                 }
-                ser.serialize_field("optionalSubjectFilter", &self.subject)?;
+                if let Some(subject) = self.filter.subject() {
+                    ser.serialize_field("optionalSubjectFilter", &SubjectFilterReference(subject))?;
+                }
 
                 ser.end()
             }
@@ -464,11 +461,7 @@ impl ZanzibarBackend for SpiceDbOpenApi {
             "/v1/relationships/read",
             &ReadRelationshipsRequest {
                 consistency: model::Consistency::from(consistency),
-                relationship_filter: RelationshipFilter {
-                    object,
-                    relation,
-                    subject: SubjectFilter { user, user_set },
-                },
+                relationship_filter: RelationshipFilter { filter },
             },
         )
         .await

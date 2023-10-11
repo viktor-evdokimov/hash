@@ -1,3 +1,4 @@
+use core::fmt;
 use std::borrow::Cow;
 
 use graph_types::account::AccountId;
@@ -5,16 +6,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::zanzibar::{Object, ObjectFilter, Resource, Subject};
 
-impl Resource for AccountId {
-    type Id = Self;
-
-    fn namespace() -> &'static str {
-        "graph/account"
-    }
-
-    fn id(&self) -> Self::Id {
-        *self
-    }
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AccountNamespace {
+    #[serde(rename = "graph/account")]
+    Account,
 }
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
@@ -23,24 +18,25 @@ pub enum PublicAccess {
     Public,
 }
 
-impl Resource for PublicAccess {
-    type Id = &'static str;
-
-    fn namespace() -> &'static str {
-        "graph/account"
-    }
-
-    fn id(&self) -> Self::Id {
-        "*"
+impl fmt::Display for PublicAccess {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.serialize(fmt)
     }
 }
 
-impl ObjectFilter for AccountId {
+impl Object for PublicAccess {
+    type Error = !;
     type Id = Self;
-    type Namespace = Cow<'static, str>;
+    type Namespace = AccountNamespace;
+
+    fn new(namespace: Self::Namespace, id: Self::Id) -> Result<Self, Self::Error> {
+        match namespace {
+            AccountNamespace::Account => Ok(id),
+        }
+    }
 
     fn namespace(&self) -> &Self::Namespace {
-        &Cow::Borrowed("graph/account")
+        &AccountNamespace::Account
     }
 
     fn id(&self) -> &Self::Id {
@@ -50,8 +46,20 @@ impl ObjectFilter for AccountId {
 
 impl Object for AccountId {
     type Error = !;
+    type Id = Self;
+    type Namespace = AccountNamespace;
 
     fn new(namespace: Self::Namespace, id: Self::Id) -> Result<Self, Self::Error> {
-        Ok(id)
+        match namespace {
+            AccountNamespace::Account => Ok(id),
+        }
+    }
+
+    fn namespace(&self) -> &Self::Namespace {
+        &AccountNamespace::Account
+    }
+
+    fn id(&self) -> &Self::Id {
+        self
     }
 }

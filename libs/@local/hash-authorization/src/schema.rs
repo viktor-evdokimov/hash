@@ -7,7 +7,7 @@ pub use self::{
     account::PublicAccess,
     account_group::{
         AccountGroupAdmin, AccountGroupMember, AccountGroupOwner, AccountGroupPermission,
-        AccountGroupRelation, AccountGroupRelationship,
+        AccountGroupSubject,
     },
     // entity::{EntityPermission, EntityRelation},
     // web::{OwnerId, WebPermission, WebRelation},

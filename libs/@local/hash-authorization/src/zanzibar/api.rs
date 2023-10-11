@@ -7,8 +7,8 @@ use graph_types::{
 
 use crate::{
     backend::{CheckError, CheckResponse, ModifyRelationError, ZanzibarBackend},
-    schema::{AccountGroupPermission, AccountGroupRelationship},
-    zanzibar::{Consistency, Zookie},
+    schema::{AccountGroupPermission, AccountGroupSubject},
+    zanzibar::{Consistency, Filter, Zookie},
     AuthorizationApi, VisibilityScope,
 };
 
@@ -27,21 +27,14 @@ impl<B: ZanzibarBackend + Send + Sync> ZanzibarClient<B> {
     async fn read_account_group_relations(
         &mut self,
         account_group: AccountGroupId,
-    ) -> Result<Vec<AccountGroupRelationship>, ModifyRelationError> {
-        Ok(self
-            .backend
-            .read_relations::<AccountGroupId, !, !, !, (AccountGroupId, AccountGroupRelationship)>(
-                Some(account_group),
-                None,
-                None,
-                None,
+    ) -> Result<Vec<(AccountGroupId, AccountGroupSubject)>, ModifyRelationError> {
+        self.backend
+            .read_relations(
+                Filter::new().with_object(&account_group),
                 Consistency::FullyConsistent,
             )
             .await
-            .change_context(ModifyRelationError)?
-            .into_iter()
-            .map(|(_, relation)| relation)
-            .collect())
+            .change_context(ModifyRelationError)
     }
 }
 
@@ -64,7 +57,7 @@ where
     async fn add_account_group_relation(
         &mut self,
         account_group: AccountGroupId,
-        relation: impl Into<AccountGroupRelationship> + Send,
+        relation: impl Into<AccountGroupSubject> + Send,
     ) -> Result<Zookie<'static>, ModifyRelationError> {
         Ok(self
             .backend
@@ -77,7 +70,7 @@ where
     async fn remove_account_group_relation(
         &mut self,
         account_group: AccountGroupId,
-        relation: impl Into<AccountGroupRelationship> + Send,
+        relation: impl Into<AccountGroupSubject> + Send,
     ) -> Result<Zookie<'static>, ModifyRelationError> {
         Ok(self
             .backend

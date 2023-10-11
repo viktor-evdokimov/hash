@@ -7,6 +7,8 @@
 )]
 #![feature(never_type)]
 
+extern crate core;
+
 pub mod backend;
 pub mod schema;
 pub mod zanzibar;
@@ -24,7 +26,7 @@ use graph_types::{
 
 use crate::{
     backend::{CheckError, CheckResponse, ModifyRelationError},
-    schema::{AccountGroupPermission, AccountGroupRelationship},
+    schema::{AccountGroupPermission, AccountGroupSubject},
     zanzibar::{Consistency, Zookie},
 };
 
@@ -48,7 +50,7 @@ impl AuthorizationApi for NoAuthorization {
     async fn add_account_group_relation(
         &mut self,
         _account_group: AccountGroupId,
-        _relation: impl Into<AccountGroupRelationship> + Send,
+        _relation: impl Into<AccountGroupSubject> + Send,
     ) -> Result<Zookie<'static>, ModifyRelationError> {
         Ok(Zookie::empty())
     }
@@ -56,7 +58,7 @@ impl AuthorizationApi for NoAuthorization {
     async fn remove_account_group_relation(
         &mut self,
         _account_group: AccountGroupId,
-        _relation: impl Into<AccountGroupRelationship> + Send,
+        _relation: impl Into<AccountGroupSubject> + Send,
     ) -> Result<Zookie<'static>, ModifyRelationError> {
         Ok(Zookie::empty())
     }

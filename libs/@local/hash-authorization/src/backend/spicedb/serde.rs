@@ -23,7 +23,7 @@ impl<T: ObjectFilter> Serialize for ObjectReference<'_, T> {
         S: Serializer,
     {
         let mut serialize = serializer.serialize_struct("ObjectReference", 2)?;
-        serialize.serialize_field("objectType", self.0.namespace())?;
+        serialize.serialize_field("objectType", &self.0.namespace())?;
         serialize.serialize_field("objectId", &self.0.id())?;
         serialize.end()
     }

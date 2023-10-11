@@ -9,8 +9,9 @@ use serde::{Deserialize, Serialize};
 pub use self::spicedb::SpiceDbOpenApi;
 use crate::{
     zanzibar::{
-        types::RelationFilter, Consistency, Object, ObjectFilter, Relation, Relationship, Resource,
-        Subject, UntypedTuple, Zookie,
+        types::{RelationFilter, SubjectFilter},
+        Consistency, Filter, Object, ObjectFilter, Relation, Relationship, Resource, Subject,
+        UntypedTuple, Zookie,
     },
     NoAuthorization,
 };
@@ -100,25 +101,22 @@ pub trait ZanzibarBackend {
     /// # Errors
     ///
     /// Returns an error if the reading could not be performed.
-    fn read_relations<O, R, U, S, T>(
+    fn read_relations<O, R, S, T>(
         &self,
-        object: Option<O>,
-        relation: Option<R>,
-        user: Option<U>,
-        user_set: Option<S>,
+        filter: Filter<'_, O, R, S>,
         consistency: Consistency<'static>,
     ) -> impl Future<Output = Result<Vec<T>, Report<ReadError>>> + Send
     where
-        O: ObjectFilter + Send + Sync,
+        O: Object + Send + Sync,
         R: RelationFilter<O> + Send + Sync,
-        U: ObjectFilter + Send + Sync,
-        S: RelationFilter<U> + Send + Sync,
-        T: Relationship,
-        for<'de> T::Object: Object<Namespace: Deserialize<'de>, Id: Deserialize<'de>>,
-        for<'de> T::Relation: Deserialize<'de>,
-        for<'de> T::Subject: Subject<
+        S: SubjectFilter + Send + Sync,
+        for<'de> T: Relationship<
                 Object: Object<Namespace: Deserialize<'de>, Id: Deserialize<'de>>,
                 Relation: Deserialize<'de>,
+                Subject: Subject<
+                    Object: Object<Namespace: Deserialize<'de>, Id: Deserialize<'de>>,
+                    Relation: Deserialize<'de>,
+                >,
             >;
 }
 
@@ -184,18 +182,14 @@ impl ZanzibarBackend for NoAuthorization {
         })
     }
 
-    async fn read_relations<O, R, U, S, T>(
+    async fn read_relations<O, R, S, T>(
         &self,
-        _object: Option<O>,
-        _relation: Option<R>,
-        _user: Option<U>,
-        _user_set: Option<S>,
+        _filter: Filter<'_, O, R, S>,
         _consistency: Consistency<'static>,
     ) -> Result<Vec<T>, Report<ReadError>>
     where
         O: Send,
         R: Send,
-        U: Send,
         S: Send,
         T: Send,
     {

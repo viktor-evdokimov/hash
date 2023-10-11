@@ -3,7 +3,7 @@
 pub use self::{
     api::ZanzibarClient,
     types::{
-        Affiliation, Consistency, Object, ObjectFilter, Permission, Relation, Relationship,
+        Affiliation, Consistency, Filter, Object, ObjectFilter, Permission, Relation, Relationship,
         Resource, Subject, UntypedTuple, Zookie,
     },
 };

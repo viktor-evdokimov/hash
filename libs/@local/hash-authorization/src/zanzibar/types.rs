@@ -1,13 +1,132 @@
 //! General types and traits used throughout the Zanzibar authorization system.
 
-pub use self::object::{Object, ObjectFilter};
+pub use self::{
+    object::{Object, ObjectFilter},
+    subject::{Subject, SubjectFilter},
+};
 
 mod object;
+mod subject;
 
 use core::fmt;
 use std::{borrow::Cow, fmt::Display};
 
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+
+pub struct Filter<'f, O, R, S> {
+    object: Option<&'f O>,
+    affiliation: Option<&'f R>,
+    subject: Option<&'f S>,
+}
+
+impl Filter<'_, !, !, !> {
+    pub const fn new() -> Self {
+        Self {
+            object: None,
+            affiliation: None,
+            subject: None,
+        }
+    }
+}
+
+impl<'f, R, S> Filter<'f, !, R, S> {
+    pub const fn with_object<O: ObjectFilter>(self, object: &'f O) -> Filter<O, R, S> {
+        Filter {
+            object: Some(object),
+            affiliation: self.affiliation,
+            subject: self.subject,
+        }
+    }
+}
+
+impl<'f, O, S> Filter<'f, O, !, S>
+where
+    O: ObjectFilter,
+{
+    pub const fn with_relation<R: RelationFilter<O>>(self, relation: &'f R) -> Filter<O, R, S> {
+        Filter {
+            object: self.object,
+            affiliation: Some(relation),
+            subject: self.subject,
+        }
+    }
+
+    pub const fn with_permission<R: Permission<O>>(self, permission: &'f R) -> Filter<O, R, S> {
+        Filter {
+            object: self.object,
+            affiliation: Some(permission),
+            subject: self.subject,
+        }
+    }
+}
+
+impl<'f, O, R> Filter<'f, O, R, !> {
+    pub const fn with_subject<S: SubjectFilter>(self, subject: &'f S) -> Filter<O, R, S> {
+        Filter {
+            object: self.object,
+            affiliation: self.affiliation,
+            subject: Some(subject),
+        }
+    }
+}
+
+impl<O, R, S> Filter<'_, O, R, S>
+where
+    O: ObjectFilter,
+{
+    #[inline]
+    #[must_use]
+    pub const fn object(&self) -> Option<&O> {
+        self.object
+    }
+}
+
+impl<O, R, S> Filter<'_, O, R, S>
+where
+    O: ObjectFilter,
+    R: AffiliationFilter<O>,
+{
+    #[inline]
+    #[must_use]
+    pub const fn affiliation(&self) -> Option<&R> {
+        self.affiliation
+    }
+}
+
+impl<O, R, S> Filter<'_, O, R, S>
+where
+    O: ObjectFilter,
+    R: Permission<O>,
+{
+    #[inline]
+    #[must_use]
+    pub const fn permission(&self) -> Option<&R> {
+        self.affiliation()
+    }
+}
+
+impl<O, R, S> Filter<'_, O, R, S>
+where
+    O: ObjectFilter,
+    R: RelationFilter<O>,
+{
+    #[inline]
+    #[must_use]
+    pub const fn relation(&self) -> Option<&R> {
+        self.affiliation()
+    }
+}
+
+impl<O, R, S> Filter<'_, O, R, S>
+where
+    S: SubjectFilter,
+{
+    #[inline]
+    #[must_use]
+    pub const fn subject(&self) -> Option<&S> {
+        self.subject
+    }
+}
 
 /// The relation or permission of a [`Resource`] to another [`Resource`].
 pub trait AffiliationFilter<R: ObjectFilter + ?Sized>: Serialize + Display + Send + Sync {}
@@ -22,7 +141,7 @@ pub trait Permission<R: ObjectFilter + ?Sized>: AffiliationFilter<R> {}
 pub trait RelationFilter<R: ObjectFilter + ?Sized>: AffiliationFilter<R> {}
 
 /// Encapsulates the relationship between two [`Resource`]s.
-pub trait Relation<R: Object + ?Sized>: RelationFilter<R> {}
+pub trait Relation<R: Object + ?Sized>: Affiliation<R> + RelationFilter<R> {}
 
 // impl<O> ObjectFilter for O
 // where
@@ -45,63 +164,6 @@ impl<O: Object> Affiliation<O> for ! {}
 impl<O: ObjectFilter> Permission<O> for ! {}
 impl<O: ObjectFilter> RelationFilter<O> for ! {}
 impl<O: Object> Relation<O> for ! {}
-
-pub trait Subject: Sized + Send + Sync {
-    type Object: Object;
-    type Relation: Affiliation<Self::Object>;
-    type Error: Display;
-
-    fn new(object: Self::Object, relation: Option<Self::Relation>) -> Result<Self, Self::Error>;
-
-    /// Returns the underlying [`Object`] of this `Subject`.
-    fn object(&self) -> &Self::Object;
-
-    /// Returns the user set of this `Subject`, if any.
-    fn set(&self) -> Option<&Self::Relation>;
-}
-
-impl<O, R> Subject for (O, Option<R>)
-where
-    O: Object,
-    R: Affiliation<O>,
-{
-    type Error = !;
-    type Object = O;
-    type Relation = R;
-
-    fn new(object: Self::Object, relation: Option<Self::Relation>) -> Result<Self, Self::Error> {
-        Ok((object, relation))
-    }
-
-    fn object(&self) -> &Self::Object {
-        &self.0
-    }
-
-    fn set(&self) -> Option<&Self::Relation> {
-        self.1.as_ref()
-    }
-}
-
-impl<O> Subject for O
-where
-    O: Object,
-{
-    type Error = !;
-    type Object = O;
-    type Relation = !;
-
-    fn new(object: Self::Object, _relation: Option<!>) -> Result<Self, Self::Error> {
-        Ok(object)
-    }
-
-    fn object(&self) -> &Self::Object {
-        self
-    }
-
-    fn set(&self) -> Option<&Self::Relation> {
-        None
-    }
-}
 
 pub trait Relationship: Sized + Send {
     type Error: Display;
