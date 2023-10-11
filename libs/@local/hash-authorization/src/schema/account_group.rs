@@ -71,7 +71,7 @@ impl Relationship for (AccountGroupId, AccountGroupRelationship) {
     type Relation = AccountGroupRelation;
     type Subject = AccountId;
 
-    fn new(
+    fn from_tuple(
         object: Self::Object,
         relation: Self::Relation,
         subject: Self::Subject,
@@ -92,51 +92,29 @@ impl Relationship for (AccountGroupId, AccountGroupRelationship) {
         ))
     }
 
+    fn as_tuple(&self) -> (&Self::Object, &Self::Relation, &Self::Subject) {
+        match &self.1 {
+            AccountGroupRelationship::DirectOwner(AccountGroupOwner::Account(account_id)) => (
+                self.object(),
+                &AccountGroupRelation::DirectOwner,
+                account_id,
+            ),
+            AccountGroupRelationship::DirectAdmin(AccountGroupAdmin::Account(account_id)) => (
+                self.object(),
+                &AccountGroupRelation::DirectAdmin,
+                account_id,
+            ),
+            AccountGroupRelationship::DirectMember(AccountGroupMember::Account(account_id)) => (
+                self.object(),
+                &AccountGroupRelation::DirectMember,
+                account_id,
+            ),
+        }
+    }
+
     fn object(&self) -> &Self::Object {
         &self.0
     }
-
-    fn relation(&self) -> &Self::Relation {
-        match self.1 {
-            AccountGroupRelationship::DirectOwner(AccountGroupOwner::Account(_)) => {
-                &AccountGroupRelation::DirectOwner
-            }
-            AccountGroupRelationship::DirectAdmin(AccountGroupAdmin::Account(_)) => {
-                &AccountGroupRelation::DirectAdmin
-            }
-            AccountGroupRelationship::DirectMember(AccountGroupMember::Account(_)) => {
-                &AccountGroupRelation::DirectMember
-            }
-        }
-    }
-
-    fn subject(&self) -> &Self::Subject {
-        match &self.1 {
-            AccountGroupRelationship::DirectOwner(AccountGroupOwner::Account(account_id)) => {
-                account_id
-            }
-            AccountGroupRelationship::DirectAdmin(AccountGroupAdmin::Account(account_id)) => {
-                account_id
-            }
-            AccountGroupRelationship::DirectMember(AccountGroupMember::Account(account_id)) => {
-                account_id
-            }
-        }
-    }
-
-    // fn to_spice_db(&self) -> (Self::Object, Self::Relation, Self::Subject) {
-    //     match self.1 {
-    //         AccountGroupRelationship::DirectOwner(AccountGroupOwner::Account(account_id)) => {
-    //             (self.0, AccountGroupRelation::DirectOwner, account_id)
-    //         }
-    //         AccountGroupRelationship::DirectAdmin(AccountGroupAdmin::Account(account_id)) => {
-    //             (self.0, AccountGroupRelation::DirectAdmin, account_id)
-    //         }
-    //         AccountGroupRelationship::DirectMember(AccountGroupMember::Account(account_id)) => {
-    //             (self.0, AccountGroupRelation::DirectMember, account_id)
-    //         }
-    //     }
-    // }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]

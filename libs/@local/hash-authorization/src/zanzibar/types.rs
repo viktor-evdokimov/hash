@@ -1,5 +1,9 @@
 //! General types and traits used throughout the Zanzibar authorization system.
 
+pub use self::object::{Object, ObjectFilter};
+
+mod object;
+
 use core::fmt;
 use std::{borrow::Cow, fmt::Display};
 
@@ -19,36 +23,6 @@ pub trait RelationFilter<R: ObjectFilter + ?Sized>: AffiliationFilter<R> {}
 
 /// Encapsulates the relationship between two [`Resource`]s.
 pub trait Relation<R: Object + ?Sized>: RelationFilter<R> {}
-
-pub trait ObjectFilter {
-    type Namespace: Serialize;
-    type Id: Serialize;
-
-    /// Returns the namespace for this `Object`.
-    fn namespace(&self) -> &Self::Namespace;
-
-    /// Returns the unique identifier for this `Object`.
-    fn id(&self) -> &Self::Id;
-}
-
-impl ObjectFilter for ! {
-    type Id = !;
-    type Namespace = !;
-
-    fn namespace(&self) -> &Self::Namespace {
-        self
-    }
-
-    fn id(&self) -> &Self::Id {
-        self
-    }
-}
-
-pub trait Object: ObjectFilter + Sized + Send + Sync {
-    type Error: Display;
-
-    fn new(namespace: Self::Namespace, id: Self::Id) -> Result<Self, Self::Error>;
-}
 
 // impl<O> ObjectFilter for O
 // where
@@ -135,20 +109,28 @@ pub trait Relationship: Sized + Send {
     type Relation: Affiliation<Self::Object>;
     type Subject: Subject;
 
-    fn new(
+    fn from_tuple(
         object: Self::Object,
         relation: Self::Relation,
         subject: Self::Subject,
     ) -> Result<Self, Self::Error>;
 
+    fn as_tuple(&self) -> (&Self::Object, &Self::Relation, &Self::Subject);
+
     /// Returns the underlying [`Object`] of this `Relationship`.
-    fn object(&self) -> &Self::Object;
+    fn object(&self) -> &Self::Object {
+        self.as_tuple().0
+    }
 
     /// Returns the [`Relation`] of this `Relationship`.
-    fn relation(&self) -> &Self::Relation;
+    fn relation(&self) -> &Self::Relation {
+        self.as_tuple().1
+    }
 
     /// Returns the [`Subject`] of this `Relationship`.
-    fn subject(&self) -> &Self::Subject;
+    fn subject(&self) -> &Self::Subject {
+        self.as_tuple().2
+    }
 }
 
 impl<O, R, S> Relationship for (O, R, S)
@@ -162,7 +144,7 @@ where
     type Relation = R;
     type Subject = S;
 
-    fn new(
+    fn from_tuple(
         object: Self::Object,
         relation: Self::Relation,
         subject: Self::Subject,
@@ -170,18 +152,34 @@ where
         Ok((object, relation, subject))
     }
 
-    fn object(&self) -> &Self::Object {
-        &self.0
-    }
-
-    fn relation(&self) -> &Self::Relation {
-        &self.1
-    }
-
-    fn subject(&self) -> &Self::Subject {
-        &self.2
+    fn as_tuple(&self) -> (&Self::Object, &Self::Relation, &Self::Subject) {
+        (&self.0, &self.1, &self.2)
     }
 }
+
+// impl<O, R, S, SR> Relationship for (O, R, S, SR)
+// where
+//     O: Object,
+//     R: Affiliation<O>,
+//     S: Object,
+//     SR: Affiliation<S>,
+// {
+//     type Error = !;
+//     type Object = O;
+//     type Relation = R;
+//     type Subject = (S, Option<SR>);
+//
+//     fn from_tuple(
+//         object: Self::Object,
+//         relation: Self::Relation,
+//         subject: Self::Subject,
+//     ) -> Result<Self, Self::Error> { Ok((object, relation, subject))
+//     }
+//
+//     fn as_tuple(&self) -> (&Self::Object, &Self::Relation, &Self::Subject) {
+//         (&self.0, &self.1, &self.2)
+//     }
+// }
 
 /// Represent a unique entity that is being modelled.
 ///
