@@ -142,7 +142,7 @@ impl AuthorizationApi for NoAuthorization {
     async fn check_entity_permission(
         &self,
         _actor: AccountId,
-        _permission: EntityPermission,
+        _permission: &EntityPermission<'_>,
         _entity: EntityId,
         _consistency: Consistency<'_>,
     ) -> Result<CheckResponse, CheckError> {

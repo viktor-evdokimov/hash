@@ -10,7 +10,7 @@ pub use self::spicedb::SpiceDbOpenApi;
 use crate::{
     zanzibar::{
         types::{Relationship, RelationshipFilter, Resource, Subject},
-        Affiliation, Consistency, Zookie,
+        Consistency, Permission, Relation, Zookie,
     },
     NoAuthorization,
 };
@@ -63,6 +63,7 @@ pub trait ZanzibarBackend {
                 Relation: Serialize,
                 Subject: Resource<Namespace: Serialize, Id: Serialize>,
                 SubjectSet: Serialize,
+                Caveat: Serialize,
             > + Send
             + Sync;
 
@@ -85,6 +86,7 @@ pub trait ZanzibarBackend {
                 Relation: Serialize,
                 Subject: Resource<Namespace: Serialize, Id: Serialize>,
                 SubjectSet: Serialize,
+                Caveat: Serialize,
             > + Send
             + Sync,
     {
@@ -109,6 +111,7 @@ pub trait ZanzibarBackend {
                 Relation: Serialize,
                 Subject: Resource<Namespace: Serialize, Id: Serialize>,
                 SubjectSet: Serialize,
+                Caveat: Serialize,
             > + Send
             + Sync,
     {
@@ -133,6 +136,7 @@ pub trait ZanzibarBackend {
                 Relation: Serialize,
                 Subject: Resource<Namespace: Serialize, Id: Serialize>,
                 SubjectSet: Serialize,
+                Caveat: Serialize,
             > + Send
             + Sync,
     {
@@ -158,7 +162,7 @@ pub trait ZanzibarBackend {
     ) -> impl Future<Output = Result<CheckResponse, Report<CheckError>>> + Send
     where
         O: Resource<Namespace: Serialize, Id: Serialize> + Sync,
-        R: Serialize + Affiliation<O> + Sync,
+        R: Permission<O, Context: Serialize> + Serialize + Sync,
         S: Subject<Resource: Resource<Namespace: Serialize, Id: Serialize>, Relation: Serialize>
             + Sync;
 
@@ -185,6 +189,7 @@ pub trait ZanzibarBackend {
                 Relation: Deserialize<'de>,
                 Subject: Resource<Namespace: Deserialize<'de>, Id: Deserialize<'de>>,
                 SubjectSet: Deserialize<'de>,
+                Caveat: Deserialize<'de>,
             > + Send;
 }
 

@@ -1,4 +1,4 @@
-use std::{error::Error, fmt};
+use std::{borrow::Cow, error::Error, fmt};
 
 use graph_types::{
     account::{AccountGroupId, AccountId},
@@ -11,8 +11,8 @@ use uuid::Uuid;
 use crate::{
     schema::PublicAccess,
     zanzibar::{
-        types::{Relationship, Resource},
-        Affiliation, Permission, Relation,
+        types::{Caveat, Relationship, Resource},
+        Permission, Relation,
     },
 };
 
@@ -80,25 +80,36 @@ impl fmt::Display for EntityObjectRelation {
     }
 }
 
-impl Affiliation<EntityUuid> for EntityObjectRelation {}
 impl Relation<EntityUuid> for EntityObjectRelation {}
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
-#[serde(rename_all = "snake_case")]
-pub enum EntityPermission {
-    Update,
-    View,
+pub struct EntityRequestedOntologyTypeContext<'c> {
+    pub base_url: Cow<'c, str>,
+    pub versioned_url: Cow<'c, str>,
 }
 
-impl fmt::Display for EntityPermission {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.serialize(fmt)
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
+#[serde(rename_all = "snake_case", tag = "permission", deny_unknown_fields)]
+pub enum EntityPermission<'c> {
+    Update,
+    View {
+        #[serde(borrow)]
+        context: EntityRequestedOntologyTypeContext<'c>,
+    },
+}
+
+impl<'c> Permission<EntityUuid> for EntityPermission<'c> {
+    type Context = EntityRequestedOntologyTypeContext<'c>;
+
+    fn context(&self) -> Option<&Self::Context> {
+        match self {
+            Self::Update => None,
+            Self::View { context } => Some(context),
+        }
     }
 }
-
-impl Affiliation<EntityUuid> for EntityPermission {}
-impl Permission<EntityUuid> for EntityPermission {}
 
 #[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
@@ -108,7 +119,7 @@ pub enum EntitySubjectSet {
     Member,
 }
 
-impl Affiliation<EntitySubject> for EntitySubjectSet {}
+impl Relation<EntitySubject> for EntitySubjectSet {}
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
@@ -182,6 +193,19 @@ pub enum EntitySubjectRelation {
     Member,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
+pub struct EntityProvidedOntologyTypeContext {
+    pub base_urls: Vec<String>,
+    pub versioned_urls: Vec<String>,
+}
+
+impl Caveat for EntityProvidedOntologyTypeContext {
+    fn name(&self) -> &str {
+        "ontology_type"
+    }
+}
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 #[serde(rename_all = "camelCase", tag = "kind", deny_unknown_fields)]
@@ -247,16 +271,20 @@ pub enum EntityDirectViewerSubject {
     },
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
-#[serde(rename_all = "camelCase", tag = "relation", content = "subject")]
+#[serde(tag = "relation")]
 pub enum EntityRelationAndSubject {
-    #[cfg_attr(feature = "utoipa", schema(title = "EntityRelationDirectOwner"))]
-    DirectOwner(EntityDirectOwnerSubject),
-    #[cfg_attr(feature = "utoipa", schema(title = "EntityRelationDirectEditor"))]
-    DirectEditor(EntityDirectEditorSubject),
-    #[cfg_attr(feature = "utoipa", schema(title = "EntityRelationDirectViewer"))]
-    DirectViewer(EntityDirectViewerSubject),
+    DirectOwner {
+        subject: EntityDirectOwnerSubject,
+    },
+    DirectEditor {
+        subject: EntityDirectEditorSubject,
+    },
+    DirectViewer {
+        subject: EntityDirectViewerSubject,
+        context: EntityProvidedOntologyTypeContext,
+    },
 }
 
 impl EntityRelationAndSubject {
@@ -264,19 +292,20 @@ impl EntityRelationAndSubject {
         relation: EntityObjectRelation,
         subject: EntitySubject,
         subject_set: Option<EntitySubjectSet>,
+        context: Option<EntityProvidedOntologyTypeContext>,
     ) -> Result<Self, impl Error> {
         Ok(match relation {
-            EntityObjectRelation::DirectOwner => match (subject, subject_set) {
-                (EntitySubject::Account(id), None) => {
-                    Self::DirectOwner(EntityDirectOwnerSubject::Account { id })
-                }
-                (EntitySubject::AccountGroup(id), Some(set)) => {
-                    Self::DirectOwner(EntityDirectOwnerSubject::AccountGroup { id, set })
-                }
-                (EntitySubject::Public, _) => {
+            EntityObjectRelation::DirectOwner => match (subject, subject_set, context) {
+                (EntitySubject::Account(id), None, None) => Self::DirectOwner {
+                    subject: EntityDirectOwnerSubject::Account { id },
+                },
+                (EntitySubject::AccountGroup(id), Some(set), None) => Self::DirectOwner {
+                    subject: EntityDirectOwnerSubject::AccountGroup { id, set },
+                },
+                (EntitySubject::Public, ..) => {
                     return Err(InvalidRelationship::Subject { relation, subject });
                 }
-                (EntitySubject::Account(_) | EntitySubject::AccountGroup(_), _) => {
+                (EntitySubject::Account(_) | EntitySubject::AccountGroup(_), ..) => {
                     return Err(InvalidRelationship::SubjectSet {
                         relation,
                         subject,
@@ -284,17 +313,17 @@ impl EntityRelationAndSubject {
                     });
                 }
             },
-            EntityObjectRelation::DirectEditor => match (subject, subject_set) {
-                (EntitySubject::Account(id), None) => {
-                    Self::DirectEditor(EntityDirectEditorSubject::Account { id })
-                }
-                (EntitySubject::AccountGroup(id), Some(set)) => {
-                    Self::DirectEditor(EntityDirectEditorSubject::AccountGroup { id, set })
-                }
-                (EntitySubject::Public, _) => {
+            EntityObjectRelation::DirectEditor => match (subject, subject_set, context) {
+                (EntitySubject::Account(id), None, None) => Self::DirectEditor {
+                    subject: EntityDirectEditorSubject::Account { id },
+                },
+                (EntitySubject::AccountGroup(id), Some(set), None) => Self::DirectEditor {
+                    subject: EntityDirectEditorSubject::AccountGroup { id, set },
+                },
+                (EntitySubject::Public, ..) => {
                     return Err(InvalidRelationship::Subject { relation, subject });
                 }
-                (EntitySubject::Account(_) | EntitySubject::AccountGroup(_), _) => {
+                (EntitySubject::Account(_) | EntitySubject::AccountGroup(_), ..) => {
                     return Err(InvalidRelationship::SubjectSet {
                         relation,
                         subject,
@@ -302,21 +331,24 @@ impl EntityRelationAndSubject {
                     });
                 }
             },
-            EntityObjectRelation::DirectViewer => match (subject, subject_set) {
-                (EntitySubject::Public, None) => {
-                    Self::DirectViewer(EntityDirectViewerSubject::Public)
-                }
-                (EntitySubject::Account(id), None) => {
-                    Self::DirectViewer(EntityDirectViewerSubject::Account { id })
-                }
-                (EntitySubject::AccountGroup(id), Some(set)) => {
-                    Self::DirectViewer(EntityDirectViewerSubject::AccountGroup { id, set })
-                }
+            EntityObjectRelation::DirectViewer => match (subject, subject_set, context) {
+                (EntitySubject::Public, None, Some(context)) => Self::DirectViewer {
+                    subject: EntityDirectViewerSubject::Public,
+                    context,
+                },
+                (EntitySubject::Account(id), None, Some(context)) => Self::DirectViewer {
+                    subject: EntityDirectViewerSubject::Account { id },
+                    context,
+                },
+                (EntitySubject::AccountGroup(id), Some(set), Some(context)) => Self::DirectViewer {
+                    subject: EntityDirectViewerSubject::AccountGroup { id, set },
+                    context,
+                },
                 (
                     EntitySubject::Account(_)
                     | EntitySubject::AccountGroup(_)
                     | EntitySubject::Public,
-                    _,
+                    ..,
                 ) => {
                     return Err(InvalidRelationship::SubjectSet {
                         relation,
@@ -328,44 +360,53 @@ impl EntityRelationAndSubject {
         })
     }
 
-    const fn into_parts(
-        self,
+    const fn to_parts(
+        &self,
     ) -> (
         EntityObjectRelation,
         EntitySubject,
         Option<EntitySubjectSet>,
+        Option<&EntityProvidedOntologyTypeContext>,
     ) {
-        let (relation, (subject, subject_set)) = match self {
-            Self::DirectOwner(subject) => (
+        let (relation, (subject, subject_set, context)) = match self {
+            Self::DirectOwner { subject } => (
                 EntityObjectRelation::DirectOwner,
                 match subject {
-                    EntityDirectOwnerSubject::Account { id } => (EntitySubject::Account(id), None),
+                    EntityDirectOwnerSubject::Account { id } => {
+                        (EntitySubject::Account(*id), None, None)
+                    }
                     EntityDirectOwnerSubject::AccountGroup { id, set } => {
-                        (EntitySubject::AccountGroup(id), Some(set))
+                        (EntitySubject::AccountGroup(*id), Some(*set), None)
                     }
                 },
             ),
-            Self::DirectEditor(subject) => (
+            Self::DirectEditor { subject } => (
                 EntityObjectRelation::DirectEditor,
                 match subject {
-                    EntityDirectEditorSubject::Account { id } => (EntitySubject::Account(id), None),
+                    EntityDirectEditorSubject::Account { id } => {
+                        (EntitySubject::Account(*id), None, None)
+                    }
                     EntityDirectEditorSubject::AccountGroup { id, set } => {
-                        (EntitySubject::AccountGroup(id), Some(set))
+                        (EntitySubject::AccountGroup(*id), Some(*set), None)
                     }
                 },
             ),
-            Self::DirectViewer(subject) => (
+            Self::DirectViewer { subject, context } => (
                 EntityObjectRelation::DirectViewer,
                 match subject {
-                    EntityDirectViewerSubject::Account { id } => (EntitySubject::Account(id), None),
-                    EntityDirectViewerSubject::AccountGroup { id, set } => {
-                        (EntitySubject::AccountGroup(id), Some(set))
+                    EntityDirectViewerSubject::Account { id } => {
+                        (EntitySubject::Account(*id), None, Some(context))
                     }
-                    EntityDirectViewerSubject::Public => (EntitySubject::Public, None),
+                    EntityDirectViewerSubject::AccountGroup { id, set } => {
+                        (EntitySubject::AccountGroup(*id), Some(*set), Some(context))
+                    }
+                    EntityDirectViewerSubject::Public => {
+                        (EntitySubject::Public, None, Some(context))
+                    }
                 },
             ),
         };
-        (relation, subject, subject_set)
+        (relation, subject, subject_set, context)
     }
 }
 
@@ -379,6 +420,7 @@ pub enum EntitySubjectNamespace {
 }
 
 impl Relationship for (EntityUuid, EntityRelationAndSubject) {
+    type Caveat = EntityProvidedOntologyTypeContext;
     type Relation = EntityObjectRelation;
     type Resource = EntityUuid;
     type Subject = EntitySubject;
@@ -389,8 +431,9 @@ impl Relationship for (EntityUuid, EntityRelationAndSubject) {
         relation: Self::Relation,
         subject: Self::Subject,
         subject_set: Option<Self::SubjectSet>,
+        context: Option<Self::Caveat>,
     ) -> Result<Self, impl Error> {
-        EntityRelationAndSubject::from_parts(relation, subject, subject_set)
+        EntityRelationAndSubject::from_parts(relation, subject, subject_set, context)
             .map(|relation_and_subject| (resource, relation_and_subject))
     }
 
@@ -401,20 +444,10 @@ impl Relationship for (EntityUuid, EntityRelationAndSubject) {
         Self::Relation,
         Self::Subject,
         Option<Self::SubjectSet>,
-    ) {
-        Relationship::into_parts(*self)
-    }
-
-    fn into_parts(
-        self,
-    ) -> (
-        Self::Resource,
-        Self::Relation,
-        Self::Subject,
-        Option<Self::SubjectSet>,
+        Option<&Self::Caveat>,
     ) {
         let (resource, relationship) = self;
-        let (relation, subject, subject_set) = relationship.into_parts();
-        (resource, relation, subject, subject_set)
+        let (relation, subject, subject_set, context) = relationship.to_parts();
+        (*resource, relation, subject, subject_set, context)
     }
 }

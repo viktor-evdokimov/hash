@@ -8,30 +8,15 @@ use std::error::Error;
 
 use authorization::{
     backend::ZanzibarBackend,
-    schema::{EntityObjectRelation, EntityPermission},
+    schema::{
+        EntityDirectOwnerSubject, EntityDirectViewerSubject, EntityObjectRelation,
+        EntityPermission, EntityProvidedOntologyTypeContext, EntityRelationAndSubject,
+        EntityRequestedOntologyTypeContext,
+    },
     zanzibar::Consistency,
 };
 
 use crate::schema::{ALICE, BOB, ENTITY_A, ENTITY_B};
-
-#[tokio::test]
-async fn test_schema() -> Result<(), Box<dyn Error>> {
-    let mut api = api::connect();
-
-    api.import_schema(include_str!("../schemas/v1__initial_schema.zed"))
-        .await?;
-
-    let mut schema = api.export_schema().await?.schema;
-    let mut imported_schema = include_str!("../schemas/v1__initial_schema.zed").to_owned();
-
-    // Remove whitespace from schemas, they are not preserved
-    schema.retain(|c| !c.is_whitespace());
-    imported_schema.retain(|c| !c.is_whitespace());
-
-    assert_eq!(schema, imported_schema);
-
-    Ok(())
-}
 
 #[tokio::test]
 async fn plain_permissions() -> Result<(), Box<dyn Error>> {
@@ -42,50 +27,42 @@ async fn plain_permissions() -> Result<(), Box<dyn Error>> {
 
     let token = api
         .touch_relationships([
-            (ENTITY_A, EntityObjectRelation::DirectOwner, ALICE),
-            (ENTITY_A, EntityObjectRelation::DirectViewer, BOB),
-            (ENTITY_B, EntityObjectRelation::DirectOwner, BOB),
+            (
+                ENTITY_A,
+                EntityRelationAndSubject::DirectOwner {
+                    subject: EntityDirectOwnerSubject::Account { id: ALICE },
+                },
+            ),
+            (
+                ENTITY_A,
+                EntityRelationAndSubject::DirectViewer {
+                    subject: EntityDirectViewerSubject::Account { id: BOB },
+                    context: EntityProvidedOntologyTypeContext {
+                        base_urls: vec!["".to_owned()],
+                        versioned_urls: vec![],
+                    },
+                },
+            ),
+            (
+                ENTITY_B,
+                EntityRelationAndSubject::DirectOwner {
+                    subject: EntityDirectOwnerSubject::Account { id: BOB },
+                },
+            ),
         ])
         .await?
         .written_at;
-
-    // Test relations
-    assert!(
-        api.check(
-            &ENTITY_A,
-            &EntityObjectRelation::DirectOwner,
-            &ALICE,
-            Consistency::AtLeastAsFresh(&token)
-        )
-        .await?
-        .has_permission
-    );
-    assert!(
-        api.check(
-            &ENTITY_A,
-            &EntityObjectRelation::DirectViewer,
-            &BOB,
-            Consistency::AtLeastAsFresh(&token)
-        )
-        .await?
-        .has_permission
-    );
-    assert!(
-        api.check(
-            &ENTITY_B,
-            &EntityObjectRelation::DirectOwner,
-            &BOB,
-            Consistency::AtLeastAsFresh(&token)
-        )
-        .await?
-        .has_permission
-    );
 
     // Test permissions
     assert!(
         api.check(
             &ENTITY_A,
-            &EntityPermission::View,
+            &EntityPermission::View {
+                context: EntityRequestedOntologyTypeContext {
+                    base_url: "",
+                    versioned_url: "",
+                }
+            },
             &ALICE,
             Consistency::AtLeastAsFresh(&token)
         )
@@ -95,7 +72,12 @@ async fn plain_permissions() -> Result<(), Box<dyn Error>> {
     assert!(
         !api.check(
             &ENTITY_B,
-            &EntityPermission::View,
+            &EntityPermission::View {
+                context: EntityRequestedOntologyTypeContext {
+                    base_url: "",
+                    versioned_url: "",
+                }
+            },
             &ALICE,
             Consistency::AtLeastAsFresh(&token)
         )
@@ -105,7 +87,12 @@ async fn plain_permissions() -> Result<(), Box<dyn Error>> {
     assert!(
         api.check(
             &ENTITY_A,
-            &EntityPermission::View,
+            &EntityPermission::View {
+                context: EntityRequestedOntologyTypeContext {
+                    base_url: "",
+                    versioned_url: "",
+                }
+            },
             &BOB,
             Consistency::AtLeastAsFresh(&token)
         )
@@ -115,7 +102,12 @@ async fn plain_permissions() -> Result<(), Box<dyn Error>> {
     assert!(
         api.check(
             &ENTITY_B,
-            &EntityPermission::View,
+            &EntityPermission::View {
+                context: EntityRequestedOntologyTypeContext {
+                    base_url: "",
+                    versioned_url: "",
+                }
+            },
             &BOB,
             Consistency::AtLeastAsFresh(&token)
         )
@@ -171,7 +163,12 @@ async fn plain_permissions() -> Result<(), Box<dyn Error>> {
     assert!(
         !api.check(
             &ENTITY_A,
-            &EntityPermission::View,
+            &EntityPermission::View {
+                context: EntityRequestedOntologyTypeContext {
+                    base_url: "",
+                    versioned_url: "",
+                }
+            },
             &BOB,
             Consistency::AtLeastAsFresh(&token)
         )

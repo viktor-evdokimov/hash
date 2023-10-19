@@ -8,8 +8,8 @@ use authorization::{
     backend::ModifyRelationshipOperation,
     schema::{
         EntityDirectEditorSubject, EntityDirectOwnerSubject, EntityDirectViewerSubject,
-        EntityObjectRelation, EntityPermission, EntityRelationAndSubject, EntitySubject,
-        EntitySubjectSet, OwnerId,
+        EntityObjectRelation, EntityPermission, EntityProvidedOntologyTypeContext,
+        EntityRelationAndSubject, EntitySubject, EntitySubjectSet, OwnerId,
     },
     zanzibar::Consistency,
     AuthorizationApi, AuthorizationApiPool,
@@ -80,6 +80,7 @@ use crate::{
             EntityAuthorizationRelationship,
             ModifyEntityAuthorizationRelationship,
             ModifyRelationshipOperation,
+            EntityProvidedOntologyTypeContext,
 
             Entity,
             EntityUuid,
@@ -251,7 +252,7 @@ where
 #[tracing::instrument(level = "info", skip(authorization_api_pool))]
 async fn check_entity_permission<A>(
     AuthenticatedUserHeader(actor_id): AuthenticatedUserHeader,
-    Path((entity_id, permission)): Path<(EntityId, EntityPermission)>,
+    Path((entity_id, permission)): Path<(EntityId, EntityPermission<'static>)>,
     authorization_api_pool: Extension<Arc<A>>,
 ) -> Result<Json<PermissionResponse>, StatusCode>
 where
@@ -267,7 +268,7 @@ where
             })?
             .check_entity_permission(
                 actor_id,
-                permission,
+                &permission,
                 entity_id,
                 Consistency::FullyConsistent,
             )
@@ -275,8 +276,7 @@ where
             .map_err(|error| {
                 tracing::error!(
                     ?error,
-                    "Could not check if {permission} permission on entity is granted to the \
-                     specified actor"
+                    "Could not check if permission on entity is granted to the specified actor"
                 );
                 StatusCode::INTERNAL_SERVER_ERROR
             })?
@@ -584,7 +584,6 @@ where
         return Err(StatusCode::FORBIDDEN);
     }
 
-    // for request in relationships.0 {
     authorization_api
         .modify_entity_relations(operations)
         .await
@@ -592,7 +591,6 @@ where
             tracing::error!(?error, "Could not add entity relationship");
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
-    // }
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -670,7 +668,7 @@ where
         .modify_entity_relations([(
             ModifyRelationshipOperation::Create,
             entity_id,
-            EntityRelationAndSubject::DirectOwner(subject),
+            EntityRelationAndSubject::DirectOwner { subject },
         )])
         .await
         .map_err(|error| {
@@ -757,7 +755,7 @@ where
         .modify_entity_relations([(
             ModifyRelationshipOperation::Delete,
             entity_id,
-            EntityRelationAndSubject::DirectOwner(subject),
+            EntityRelationAndSubject::DirectOwner { subject },
         )])
         .await
         .map_err(|error| {
@@ -838,7 +836,7 @@ where
         .modify_entity_relations([(
             ModifyRelationshipOperation::Create,
             entity_id,
-            EntityRelationAndSubject::DirectEditor(subject),
+            EntityRelationAndSubject::DirectEditor { subject },
         )])
         .await
         .map_err(|error| {
@@ -922,7 +920,7 @@ where
         .modify_entity_relations([(
             ModifyRelationshipOperation::Delete,
             entity_id,
-            EntityRelationAndSubject::DirectEditor(subject),
+            EntityRelationAndSubject::DirectEditor { subject },
         )])
         .await
         .map_err(|error| {

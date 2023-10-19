@@ -15,10 +15,14 @@ definition graph/account_group {
 	permission member = direct_owner + direct_admin + direct_member
 }
 
+caveat ontology_type(base_urls list<string>, versioned_urls list<string>, base_url string, versioned_url string) {
+	base_url in base_urls || versioned_url in versioned_urls
+}
+
 definition graph/entity {
 	relation direct_owner: graph/account | graph/account_group#member
 	relation direct_editor: graph/account | graph/account_group#member
-	relation direct_viewer: graph/account | graph/account_group#member | graph/account:*
+	relation direct_viewer: graph/account with ontology_type | graph/account_group#member with ontology_type | graph/account:* with ontology_type
 
 	permission update = direct_owner + direct_editor
 	permission view = direct_viewer + update

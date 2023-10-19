@@ -439,7 +439,7 @@ impl<C: AsClient> EntityStore for PostgresStore<C> {
             .modify_entity_relations([(
                 ModifyRelationshipOperation::Create,
                 entity_id,
-                EntityRelationAndSubject::DirectOwner(subject),
+                EntityRelationAndSubject::DirectOwner { subject },
             )])
             .await
             .change_context(InsertionError)?;
@@ -449,7 +449,7 @@ impl<C: AsClient> EntityStore for PostgresStore<C> {
                 .modify_entity_relations([(
                     ModifyRelationshipOperation::Delete,
                     entity_id,
-                    EntityRelationAndSubject::DirectOwner(subject),
+                    EntityRelationAndSubject::DirectOwner { subject },
                 )])
                 .await
                 .change_context(InsertionError)
@@ -638,7 +638,7 @@ impl<C: AsClient> EntityStore for PostgresStore<C> {
         let (permissions, zookie) = authorization_api
             .check_entities_permission(
                 actor_id,
-                EntityPermission::View,
+                &EntityPermission::View,
                 filtered_ids,
                 Consistency::FullyConsistent,
             )
@@ -710,7 +710,7 @@ impl<C: AsClient> EntityStore for PostgresStore<C> {
         authorization_api
             .check_entity_permission(
                 actor_id,
-                EntityPermission::Update,
+                &EntityPermission::Update,
                 entity_id,
                 Consistency::FullyConsistent,
             )

@@ -2571,6 +2571,27 @@
         "type": "object",
         "description": "The properties of an entity.\n\nWhen expressed as JSON, this should validate against its respective entity type(s)."
       },
+      "EntityProvidedOntologyTypeContext": {
+        "type": "object",
+        "required": [
+          "base_urls",
+          "versioned_urls"
+        ],
+        "properties": {
+          "base_urls": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "versioned_urls": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "EntityQueryToken": {
         "type": "string",
         "description": "A single token in an [`EntityQueryPath`].",
@@ -2609,16 +2630,15 @@
         "oneOf": [
           {
             "type": "object",
-            "title": "EntityRelationDirectOwner",
             "required": [
-              "relation",
-              "subject"
+              "subject",
+              "relation"
             ],
             "properties": {
               "relation": {
                 "type": "string",
                 "enum": [
-                  "directOwner"
+                  "DirectOwner"
                 ]
               },
               "subject": {
@@ -2628,16 +2648,15 @@
           },
           {
             "type": "object",
-            "title": "EntityRelationDirectEditor",
             "required": [
-              "relation",
-              "subject"
+              "subject",
+              "relation"
             ],
             "properties": {
               "relation": {
                 "type": "string",
                 "enum": [
-                  "directEditor"
+                  "DirectEditor"
                 ]
               },
               "subject": {
@@ -2647,16 +2666,19 @@
           },
           {
             "type": "object",
-            "title": "EntityRelationDirectViewer",
             "required": [
-              "relation",
-              "subject"
+              "subject",
+              "context",
+              "relation"
             ],
             "properties": {
+              "context": {
+                "$ref": "#/components/schemas/EntityProvidedOntologyTypeContext"
+              },
               "relation": {
                 "type": "string",
                 "enum": [
-                  "directViewer"
+                  "DirectViewer"
                 ]
               },
               "subject": {

@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::zanzibar::{
     types::{Resource, Subject},
-    Affiliation, Permission, Relation,
+    Permission, Relation,
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -47,7 +47,6 @@ impl fmt::Display for AccountGroupRelation {
     }
 }
 
-impl Affiliation<AccountGroupId> for AccountGroupRelation {}
 impl Relation<AccountGroupId> for AccountGroupRelation {}
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -70,8 +69,14 @@ impl fmt::Display for AccountGroupPermission {
     }
 }
 
-impl Affiliation<AccountGroupId> for AccountGroupPermission {}
-impl Permission<AccountGroupId> for AccountGroupPermission {}
+impl Relation<AccountGroupId> for AccountGroupPermission {}
+impl Permission<AccountGroupId> for AccountGroupPermission {
+    type Context = !;
+
+    fn context(&self) -> Option<&Self::Context> {
+        None
+    }
+}
 
 impl Subject for (AccountGroupId, AccountGroupRelation) {
     type Relation = AccountGroupRelation;

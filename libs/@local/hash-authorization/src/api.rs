@@ -106,7 +106,7 @@ pub trait AuthorizationApi {
     fn check_entity_permission(
         &self,
         actor: AccountId,
-        permission: EntityPermission,
+        permission: &EntityPermission,
         entity: EntityId,
         consistency: Consistency<'_>,
     ) -> impl Future<Output = Result<CheckResponse, CheckError>> + Send;
@@ -141,7 +141,7 @@ pub trait AuthorizationApi {
                     has_permission,
                     checked_at,
                 } = self
-                    .check_entity_permission(actor, permission, entity, consistency)
+                    .check_entity_permission(actor, &permission, entity, consistency)
                     .await?;
                 result.insert(entity, has_permission);
                 zookie = checked_at;

@@ -265,12 +265,12 @@ where
     async fn check_entity_permission(
         &self,
         actor: AccountId,
-        permission: EntityPermission,
+        permission: &EntityPermission<'_>,
         entity: EntityId,
         consistency: Consistency<'_>,
     ) -> Result<CheckResponse, CheckError> {
         self.backend
-            .check(&entity.entity_uuid, &permission, &actor, consistency)
+            .check(&entity.entity_uuid, permission, &actor, consistency)
             .await
     }
 

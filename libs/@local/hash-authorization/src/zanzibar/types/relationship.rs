@@ -4,8 +4,9 @@ use crate::zanzibar::{
     types::{
         resource::{Resource, ResourceFilter},
         subject::{Subject, SubjectFilter},
+        Caveat,
     },
-    Affiliation,
+    Relation,
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -55,9 +56,10 @@ impl<ON, OI, R> RelationshipFilter<ON, OI, R, !, !, !> {
 
 pub trait Relationship: Sized {
     type Resource: Resource;
-    type Relation: Affiliation<Self::Resource>;
+    type Relation: Relation<Self::Resource>;
     type Subject: Resource;
-    type SubjectSet: Affiliation<Self::Subject>;
+    type SubjectSet: Relation<Self::Subject>;
+    type Caveat: Caveat;
 
     /// Creates a relationship from an resource, relation, subject, and subject set.
     ///
@@ -70,8 +72,10 @@ pub trait Relationship: Sized {
         relation: Self::Relation,
         subject: Self::Subject,
         subject_set: Option<Self::SubjectSet>,
+        caveat: Option<Self::Caveat>,
     ) -> Result<Self, impl Error>;
 
+    #[expect(clippy::type_complexity)]
     fn to_parts(
         &self,
     ) -> (
@@ -79,24 +83,17 @@ pub trait Relationship: Sized {
         Self::Relation,
         Self::Subject,
         Option<Self::SubjectSet>,
-    );
-
-    fn into_parts(
-        self,
-    ) -> (
-        Self::Resource,
-        Self::Relation,
-        Self::Subject,
-        Option<Self::SubjectSet>,
+        Option<&Self::Caveat>,
     );
 }
 
 impl<O, R, S> Relationship for (O, R, S)
 where
     O: Resource + Copy,
-    R: Affiliation<O> + Copy,
+    R: Relation<O> + Copy,
     S: Subject + Copy,
 {
+    type Caveat = !;
     type Relation = R;
     type Resource = O;
     type Subject = S::Resource;
@@ -107,6 +104,7 @@ where
         relation: Self::Relation,
         subject: Self::Subject,
         subject_set: Option<Self::SubjectSet>,
+        _caveat: Option<!>,
     ) -> Result<Self, impl Error> {
         S::from_parts(subject, subject_set).map(|subject| (resource, relation, subject))
     }
@@ -118,20 +116,10 @@ where
         Self::Relation,
         Self::Subject,
         Option<Self::SubjectSet>,
+        Option<&Self::Caveat>,
     ) {
-        Relationship::into_parts(*self)
-    }
-
-    fn into_parts(
-        self,
-    ) -> (
-        Self::Resource,
-        Self::Relation,
-        Self::Subject,
-        Option<Self::SubjectSet>,
-    ) {
-        let (resource, relation, subject) = self;
-        let (subject, subject_set) = Subject::into_parts(subject);
-        (resource, relation, subject, subject_set)
+        let (object, relation, subject) = self;
+        let (subject, subject_set) = Subject::to_parts(subject);
+        (*object, *relation, subject, subject_set, None)
     }
 }

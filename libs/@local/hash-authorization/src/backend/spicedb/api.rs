@@ -16,7 +16,7 @@ use crate::{
     },
     zanzibar::{
         types::{Relationship, RelationshipFilter, Resource, Subject},
-        Affiliation, Consistency,
+        Consistency, Permission,
     },
 };
 
@@ -210,6 +210,7 @@ impl ZanzibarBackend for SpiceDbOpenApi {
                 Relation: Serialize,
                 Subject: Resource<Namespace: Serialize, Id: Serialize>,
                 SubjectSet: Serialize,
+                Caveat: Serialize,
             > + Send
             + Sync,
     {
@@ -220,7 +221,8 @@ impl ZanzibarBackend for SpiceDbOpenApi {
                 Resource: Resource<Namespace: Serialize, Id: Serialize>,
                 Relation: Serialize,
                 Subject: Resource<Namespace: Serialize, Id: Serialize>,
-                SubjectSet: Serialize
+                SubjectSet: Serialize,
+                Caveat: Serialize,
             >"
         )]
         struct RelationshipUpdate<R> {
@@ -236,7 +238,8 @@ impl ZanzibarBackend for SpiceDbOpenApi {
                 Resource: Resource<Namespace: Serialize, Id: Serialize>,
                 Relation: Serialize,
                 Subject: Resource<Namespace: Serialize, Id: Serialize>,
-                SubjectSet: Serialize
+                SubjectSet: Serialize,
+                Caveat: Serialize,
             >"
         )]
         struct RequestBody<R> {
@@ -303,7 +306,7 @@ impl ZanzibarBackend for SpiceDbOpenApi {
     ) -> Result<CheckResponse, Report<CheckError>>
     where
         O: Resource<Namespace: Serialize, Id: Serialize> + Sync,
-        R: Serialize + Affiliation<O> + Sync,
+        R: Permission<O, Context: Serialize> + Serialize + Sync,
         S: Subject<Resource: Resource<Namespace: Serialize, Id: Serialize>, Relation: Serialize>
             + Sync,
     {
@@ -312,7 +315,7 @@ impl ZanzibarBackend for SpiceDbOpenApi {
             rename_all = "camelCase",
             bound = "
                 O: Resource<Namespace: Serialize, Id: Serialize>,
-                R: Serialize + Affiliation<O>,
+                R: Serialize,
                 S: Subject<Resource: Resource<Namespace: Serialize, Id: Serialize>, Relation: \
                      Serialize>"
         )]
@@ -320,6 +323,7 @@ impl ZanzibarBackend for SpiceDbOpenApi {
             consistency: model::Consistency<'t>,
             #[serde(with = "super::serde::resource_ref")]
             resource: &'t O,
+            #[serde(flatten)]
             permission: &'t R,
             #[serde(with = "super::serde::subject_ref")]
             subject: &'t S,
@@ -390,6 +394,7 @@ impl ZanzibarBackend for SpiceDbOpenApi {
                 Relation: Deserialize<'de>,
                 Subject: Resource<Namespace: Deserialize<'de>, Id: Deserialize<'de>>,
                 SubjectSet: Deserialize<'de>,
+                Caveat: Deserialize<'de>,
             > + Send,
     {
         #[derive(Serialize)]
@@ -413,6 +418,7 @@ impl ZanzibarBackend for SpiceDbOpenApi {
                 Relation: Deserialize<'de>,
                 Subject: Resource<Namespace: Deserialize<'de>, Id: Deserialize<'de>>,
                 SubjectSet: Deserialize<'de>,
+                Caveat: Deserialize<'de>,
             >"
         )]
         struct ReadRelationshipsResponse<R> {

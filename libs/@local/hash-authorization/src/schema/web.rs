@@ -6,7 +6,7 @@ use graph_types::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::zanzibar::{types::Resource, Affiliation, Permission, Relation};
+use crate::zanzibar::{types::Resource, Permission, Relation};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum WebNamespace {
@@ -53,8 +53,6 @@ impl fmt::Display for WebRelation {
     }
 }
 
-impl Affiliation<WebId> for WebRelation {}
-
 impl Relation<WebId> for WebRelation {}
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -70,6 +68,12 @@ impl fmt::Display for WebPermission {
     }
 }
 
-impl Affiliation<WebId> for WebPermission {}
+impl Relation<WebId> for WebPermission {}
 
-impl Permission<WebId> for WebPermission {}
+impl Permission<WebId> for WebPermission {
+    type Context = !;
+
+    fn context(&self) -> Option<&Self::Context> {
+        None
+    }
+}

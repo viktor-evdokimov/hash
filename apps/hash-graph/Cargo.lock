@@ -123,6 +123,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-util",
+ "type-system",
  "utoipa",
  "uuid",
 ]

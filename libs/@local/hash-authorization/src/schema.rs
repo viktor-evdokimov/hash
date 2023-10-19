@@ -8,7 +8,8 @@ pub use self::{
     account_group::{AccountGroupNamespace, AccountGroupPermission, AccountGroupRelation},
     entity::{
         EntityDirectEditorSubject, EntityDirectOwnerSubject, EntityDirectViewerSubject,
-        EntityObjectRelation, EntityPermission, EntityRelationAndSubject, EntitySubject,
+        EntityObjectRelation, EntityPermission, EntityProvidedOntologyTypeContext,
+        EntityRelationAndSubject, EntityRequestedOntologyTypeContext, EntitySubject,
         EntitySubjectId, EntitySubjectRelation, EntitySubjectSet,
     },
     web::{OwnerId, WebNamespace, WebPermission, WebRelation},

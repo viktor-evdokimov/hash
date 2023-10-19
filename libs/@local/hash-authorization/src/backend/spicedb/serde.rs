@@ -109,8 +109,8 @@ pub(crate) mod relationship {
     use crate::{
         backend::spicedb::serde::SerializedSubject,
         zanzibar::{
-            types::{Relationship, Resource},
-            Affiliation,
+            types::{Caveat, Relationship, Resource},
+            Relation,
         },
     };
 
@@ -119,30 +119,38 @@ pub(crate) mod relationship {
         rename_all = "camelCase",
         bound(
             serialize = "O: Resource<Namespace: Serialize, Id: Serialize>, R: Serialize, S: \
-                         Resource<Namespace: Serialize, Id: Serialize>, SR: Serialize",
+                         Resource<Namespace: Serialize, Id: Serialize>, SR: Serialize, C: Caveat \
+                         + Serialize",
             deserialize = "O: Resource<Namespace: Deserialize<'de>, Id: Deserialize<'de>>, R: \
                            Deserialize<'de>, S: Resource<Namespace: Deserialize<'de>, Id: \
-                           Deserialize<'de>>, SR: Deserialize<'de>"
+                           Deserialize<'de>>, SR: Deserialize<'de>, C: Caveat + Deserialize<'de>"
         )
     )]
-    struct SerializedRelationship<O, R, S, SR> {
+    struct SerializedRelationship<O, R, S, SR, C> {
         #[serde(with = "super::resource")]
         resource: O,
         relation: R,
         subject: SerializedSubject<S, SR>,
+        #[serde(
+            with = "super::caveat",
+            default,
+            skip_serializing_if = "Option::is_none"
+        )]
+        optional_caveat: Option<C>,
     }
 
     pub(crate) fn serialize<T, S>(relationship: &T, serializer: S) -> Result<S::Ok, S::Error>
     where
         T: Relationship<
                 Resource: Resource<Namespace: Serialize, Id: Serialize>,
-                Relation: Affiliation<T::Resource> + Serialize,
+                Relation: Relation<T::Resource> + Serialize,
                 Subject: Resource<Namespace: Serialize, Id: Serialize>,
-                SubjectSet: Affiliation<T::Subject> + Serialize,
+                SubjectSet: Relation<T::Subject> + Serialize,
+                Caveat: Serialize,
             >,
         S: Serializer,
     {
-        let (resource, relation, subject, subject_set) = relationship.to_parts();
+        let (resource, relation, subject, subject_set, optional_caveat) = relationship.to_parts();
         SerializedRelationship {
             resource,
             relation,
@@ -150,6 +158,7 @@ pub(crate) mod relationship {
                 object: subject,
                 optional_relation: subject_set,
             },
+            optional_caveat,
         }
         .serialize(serializer)
     }
@@ -158,9 +167,10 @@ pub(crate) mod relationship {
     where
         T: Relationship<
                 Resource: Resource<Namespace: Deserialize<'de>, Id: Deserialize<'de>>,
-                Relation: Affiliation<T::Resource> + Deserialize<'de>,
+                Relation: Relation<T::Resource> + Deserialize<'de>,
                 Subject: Resource<Namespace: Deserialize<'de>, Id: Deserialize<'de>>,
-                SubjectSet: Affiliation<T::Subject> + Deserialize<'de>,
+                SubjectSet: Relation<T::Subject> + Deserialize<'de>,
+                Caveat: Deserialize<'de>,
             >,
         D: Deserializer<'de>,
     {
@@ -170,8 +180,62 @@ pub(crate) mod relationship {
             relationship.relation,
             relationship.subject.object,
             relationship.subject.optional_relation,
+            relationship.optional_caveat,
         )
         .map_err(de::Error::custom)
+    }
+}
+
+pub(crate) mod caveat {
+    use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+
+    use crate::zanzibar::types::Caveat;
+
+    #[derive(Serialize, Deserialize)]
+    #[serde(
+        rename_all = "camelCase",
+        bound(
+            serialize = "C: Caveat + Serialize",
+            deserialize = "C: Caveat + Deserialize<'de>"
+        )
+    )]
+    struct SerializedCaveat<'n, C> {
+        caveat_name: &'n str,
+        context: C,
+    }
+
+    pub(crate) fn serialize<C, S>(caveat: &Option<C>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        C: Caveat + Serialize,
+        S: Serializer,
+    {
+        caveat.as_ref().map_or_else(
+            || unreachable!("Caveat::serialize should not be called with None"),
+            |caveat| {
+                SerializedCaveat {
+                    caveat_name: caveat.name(),
+                    context: caveat,
+                }
+                .serialize(serializer)
+            },
+        )
+    }
+
+    pub(crate) fn deserialize<'de, C, D>(deserializer: D) -> Result<Option<C>, D::Error>
+    where
+        C: Caveat + Deserialize<'de>,
+        D: Deserializer<'de>,
+    {
+        let caveat = SerializedCaveat::<C>::deserialize(deserializer)?;
+        if caveat.caveat_name == caveat.context.name() {
+            Ok(Some(caveat.context))
+        } else {
+            Err(de::Error::custom(format!(
+                "Expected caveat name {}, got {}",
+                caveat.context.name(),
+                caveat.caveat_name
+            )))
+        }
     }
 }
 
