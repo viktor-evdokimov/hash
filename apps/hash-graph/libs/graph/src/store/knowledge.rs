@@ -16,7 +16,11 @@ use type_system::{url::VersionedUrl, EntityType};
 use validation::ValidationProfile;
 
 use crate::{
-    store::{crud, InsertionError, QueryError, UpdateError},
+    store::{
+        crud,
+        crud::{CustomCursor, CustomSorting},
+        InsertionError, QueryError, UpdateError,
+    },
     subgraph::{identifier::EntityVertexId, query::StructuralQuery, Subgraph},
 };
 
@@ -139,9 +143,9 @@ pub trait EntityStore: crud::ReadPaginated<Entity> {
         actor_id: AccountId,
         authorization_api: &A,
         query: &StructuralQuery<'_, Entity>,
-        after: Option<&EntityVertexId>,
+        cursor: CustomSorting<'_, Entity>,
         limit: Option<usize>,
-    ) -> impl Future<Output = Result<(Subgraph, Option<EntityVertexId>), QueryError>> + Send;
+    ) -> impl Future<Output = Result<(Subgraph, Option<CustomCursor>), QueryError>> + Send;
 
     /// Update an existing [`Entity`].
     ///

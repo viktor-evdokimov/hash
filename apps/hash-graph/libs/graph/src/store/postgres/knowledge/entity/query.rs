@@ -21,7 +21,7 @@ use crate::{
     knowledge::EntityQueryPath,
     ontology::EntityTypeQueryPath,
     store::{
-        crud::{QueryRecordDecode, VertexIdSorting},
+        crud::{QueryRecordDecode, Sorting, VertexIdSorting},
         postgres::query::{
             Distinctness, Expression, Function, Ordering, PostgresSorting, QueryRecord,
             QueryRecordEncode, SelectCompiler,
@@ -48,15 +48,16 @@ pub struct EntityVertexIdCursorParameters<'p> {
     revision_id: Parameter<'p>,
 }
 
-impl QueryRecordEncode for EntityVertexId {
+impl QueryRecordEncode for VertexIdSorting<Entity> {
     type CompilationParameters<'p> = EntityVertexIdCursorParameters<'p>;
+    type Error = !;
 
-    fn encode(&self) -> Self::CompilationParameters<'_> {
-        EntityVertexIdCursorParameters {
-            owned_by_id: Parameter::Uuid(self.base_id.owned_by_id.into_uuid()),
-            entity_uuid: Parameter::Uuid(self.base_id.entity_uuid.into_uuid()),
-            revision_id: Parameter::Timestamp(self.revision_id.cast()),
-        }
+    fn encode(&self) -> Result<Option<Self::CompilationParameters<'_>>, Self::Error> {
+        Ok(self.cursor().map(|cursor| EntityVertexIdCursorParameters {
+            owned_by_id: Parameter::Uuid(cursor.base_id.owned_by_id.into_uuid()),
+            entity_uuid: Parameter::Uuid(cursor.base_id.entity_uuid.into_uuid()),
+            revision_id: Parameter::Timestamp(cursor.revision_id.cast()),
+        }))
     }
 }
 
@@ -80,6 +81,7 @@ impl QueryRecordDecode<Row> for VertexIdSorting<Entity> {
 
 impl PostgresSorting<Entity> for VertexIdSorting<Entity> {
     fn compile<'c, 'p: 'c>(
+        &self,
         compiler: &mut SelectCompiler<'c, Entity>,
         parameters: Option<&'c EntityVertexIdCursorParameters<'p>>,
         temporal_axes: &QueryTemporalAxes,

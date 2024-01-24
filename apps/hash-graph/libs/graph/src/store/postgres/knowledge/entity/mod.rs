@@ -40,9 +40,12 @@ use uuid::Uuid;
 use validation::{Validate, ValidationProfile};
 
 use crate::{
+    knowledge::EntityQueryPath,
     ontology::EntityTypeQueryPath,
     store::{
-        crud::{QueryResult, Read, ReadPaginated, VertexIdSorting},
+        crud::{
+            CustomCursor, CustomSorting, QueryResult, Read, ReadPaginated, Sorting, VertexIdSorting,
+        },
         error::{DeletionError, EntityDoesNotExist, RaceConditionOnUpdate},
         knowledge::{EntityValidationType, ValidateEntityError},
         postgres::{
@@ -883,15 +886,15 @@ impl<C: AsClient> EntityStore for PostgresStore<C> {
             .collect())
     }
 
-    #[tracing::instrument(level = "info", skip(self, authorization_api, query))]
+    #[tracing::instrument(level = "info", skip(self, authorization_api, query, sorting))]
     async fn get_entity<A: AuthorizationApi + Sync>(
         &self,
         actor_id: AccountId,
         authorization_api: &A,
         query: &StructuralQuery<'_, Entity>,
-        cursor: Option<&EntityVertexId>,
+        mut sorting: CustomSorting<'_, Entity>,
         limit: Option<usize>,
-    ) -> Result<(Subgraph, Option<EntityVertexId>), QueryError> {
+    ) -> Result<(Subgraph, Option<CustomCursor>), QueryError> {
         let StructuralQuery {
             ref filter,
             graph_resolve_depths,
@@ -904,15 +907,14 @@ impl<C: AsClient> EntityStore for PostgresStore<C> {
         let time_axis = temporal_axes.variable_time_axis();
 
         let mut root_entities = Vec::new();
-        let mut cursor = cursor.copied();
 
         let (latest_zookie, last) = loop {
             // We query one more than requested to determine if there are more entities to return.
-            let entities = ReadPaginated::<Entity>::read_paginated(
+            let entities = ReadPaginated::<Entity, CustomSorting<Entity>>::read_paginated(
                 self,
                 filter,
                 Some(&temporal_axes),
-                Some(&VertexIdSorting { cursor }),
+                &sorting,
                 limit,
                 include_drafts,
             )
@@ -920,9 +922,9 @@ impl<C: AsClient> EntityStore for PostgresStore<C> {
             .map_ok(|entity_query| (entity_query.decode_record(), entity_query))
             .try_collect::<Vec<_>>()
             .await?;
-            cursor = entities
-                .last()
-                .map(|(_, entity_query)| entity_query.decode_cursor());
+            if let Some((_, last)) = entities.last() {
+                sorting.set_cursor(last.decode_cursor());
+            }
             let num_returned_entities = entities.len();
 
             // TODO: The subgraph structure differs from the API interface. At the API the vertices

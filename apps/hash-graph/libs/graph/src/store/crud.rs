@@ -11,12 +11,15 @@ use error_stack::Result;
 use futures::{Stream, TryStreamExt};
 
 use crate::{
-    store::{query::Filter, QueryError, Record},
+    store::{
+        query::{Filter, Parameter},
+        QueryError, Record,
+    },
     subgraph::temporal_axes::QueryTemporalAxes,
 };
 
 pub trait QueryRecordDecode<Q> {
-    type CompilationArtifacts: Copy + Send + Sync + 'static;
+    type CompilationArtifacts: Clone + Send + Sync + 'static;
     type Output;
 
     fn decode(query_result: &Q, artifacts: Self::CompilationArtifacts) -> Self::Output;
@@ -54,21 +57,21 @@ impl<R: Record> Sorting for VertexIdSorting<R> {
     }
 }
 
-#[expect(
-    dead_code,
-    reason = "https://linear.app/hash/issue/H-1440/implement-sorting-for-subgraph-roots"
-)]
-pub struct CustomSorting<'p, R: Record> {
-    keys: Vec<R::QueryPath<'p>>,
-    cursor: Option<CustomCursor>,
+pub struct CustomCursorParameter<'p> {
+    pub params: Vec<Parameter<'p>>,
 }
 
-#[expect(
-    dead_code,
-    reason = "https://linear.app/hash/issue/H-1440/implement-sorting-for-subgraph-roots"
-)]
+pub struct CustomSortingPaths<'p, R: Record> {
+    pub paths: Vec<R::QueryPath<'p>>,
+}
+
+pub struct CustomSorting<'p, R: Record> {
+    pub paths: Vec<R::QueryPath<'p>>,
+    pub cursor: Option<CustomCursor>,
+}
+
 pub struct CustomCursor {
-    values: Vec<serde_json::Value>,
+    pub values: Vec<serde_json::Value>,
 }
 
 impl<R: Record> Sorting for CustomSorting<'_, R> {
@@ -143,7 +146,7 @@ impl<'f, R: Record, S> ReadParameter<'f, R, S> {
             temporal_axes: self.temporal_axes,
             include_drafts: self.include_drafts,
             sorting: Some(CustomSorting {
-                keys: keys.into_iter().collect(),
+                paths: keys.into_iter().collect(),
                 cursor: None,
             }),
             limit: self.limit,
@@ -212,7 +215,7 @@ impl<'f, R: Record, S: Sorting + Sync> ReadParameter<'f, R, S> {
             .read_paginated(
                 self.filters.unwrap_or(&Filter::All(Vec::new())),
                 self.temporal_axes,
-                self.sorting.as_ref(),
+                self.sorting.as_ref().expect("sorting is not set"),
                 self.limit,
                 self.include_drafts,
             )
@@ -244,7 +247,7 @@ pub trait ReadPaginated<R: Record, S: Sorting + Sync = VertexIdSorting<R>>: Read
         &self,
         filter: &Filter<'_, R>,
         temporal_axes: Option<&QueryTemporalAxes>,
-        sorting: Option<&S>,
+        sorting: &S,
         limit: Option<usize>,
         include_drafts: bool,
     ) -> Result<Self::ReadPaginatedStream, QueryError>;

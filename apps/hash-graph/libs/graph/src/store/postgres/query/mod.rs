@@ -12,8 +12,15 @@ mod property_type;
 mod statement;
 mod table;
 
-use std::fmt::{self, Display, Formatter};
+use std::{
+    convert::identity,
+    error::Error,
+    fmt::{self, Display, Formatter},
+};
 
+use error_stack::Context;
+use graph_types::knowledge::entity::Entity;
+use temporal_versioning::TimeAxis;
 use tokio_postgres::Row;
 
 pub use self::{
@@ -29,9 +36,14 @@ pub use self::{
     },
 };
 use crate::{
+    knowledge::EntityQueryPath,
     store::{
-        crud::{QueryRecordDecode, Sorting},
+        crud::{
+            CustomCursor, CustomCursorParameter, CustomSorting, CustomSortingPaths,
+            QueryRecordDecode, Sorting,
+        },
         postgres::query::table::Relation,
+        query::{Parameter, ParameterConversionError, ParameterType, QueryPath},
         Record,
     },
     subgraph::temporal_axes::QueryTemporalAxes,
@@ -72,18 +84,85 @@ pub trait QueryRecordEncode {
     type CompilationParameters<'p>: Send
     where
         Self: 'p;
+    type Error: Context + Send + Sync + 'static;
 
-    fn encode(&self) -> Self::CompilationParameters<'_>;
+    fn encode(&self) -> Result<Option<Self::CompilationParameters<'_>>, Self::Error>;
+}
+
+impl<R> QueryRecordEncode for CustomSorting<'_, R>
+where
+    R: Record,
+{
+    type CompilationParameters<'p> = Vec<Parameter<'p>>
+        where
+            Self: 'p;
+    type Error = ParameterConversionError;
+
+    fn encode(&self) -> Result<Option<Self::CompilationParameters<'_>>, Self::Error> {
+        self.cursor()
+            .map(|cursor| {
+                self.paths
+                    .iter()
+                    .zip(&cursor.values)
+                    .map(|(path, value)| Parameter::from_value(value, path.expected_type()))
+                    .collect()
+            })
+            .transpose()
+    }
 }
 
 pub trait PostgresSorting<R: Record>:
-    Sorting<Cursor: QueryRecordEncode> + QueryRecordDecode<Row, Output = Self::Cursor>
+    Sorting + QueryRecordEncode + QueryRecordDecode<Row, Output = Self::Cursor>
 {
     fn compile<'c, 'p: 'c>(
+        &self,
         compiler: &mut SelectCompiler<'c, R>,
-        parameters: Option<&'c <Self::Cursor as QueryRecordEncode>::CompilationParameters<'p>>,
+        parameters: Option<&'c Self::CompilationParameters<'p>>,
         temporal_axes: &QueryTemporalAxes,
     ) -> Self::CompilationArtifacts;
+}
+
+impl QueryRecordDecode<Row> for CustomSorting<'_, Entity> {
+    type CompilationArtifacts = Vec<usize>;
+    type Output = CustomCursor;
+
+    fn decode(row: &Row, indices: Self::CompilationArtifacts) -> Self::Output {
+        indices.into_iter().map(|i| row.get(i)).collect()
+    }
+}
+
+impl PostgresSorting<Entity> for CustomSorting<'_, Entity> {
+    fn compile<'c, 'p: 'c>(
+        &self,
+        compiler: &mut SelectCompiler<'c, Entity>,
+        parameters: Option<&'c Vec<Parameter<'p>>>,
+        temporal_axes: &QueryTemporalAxes,
+    ) -> Self::CompilationArtifacts {
+        if let Some(cursor) = parameters {
+            self.paths
+                .iter()
+                .zip(&cursor.values)
+                .map(|(path, value)| {
+                    let parameter = Parameter::from_value(value, path.expected_type()).expect(
+                        "provided cursor parameter does not match the expected parameter type",
+                    );
+                    let expression = compiler.compile_parameter(&parameter).0;
+                    compiler.add_cursor_selection(&path, identity, expression, Ordering::Ascending);
+                })
+                .collect()
+        } else {
+            self.paths
+                .iter()
+                .map(|path| {
+                    compiler.add_distinct_selection_with_ordering(
+                        &path,
+                        Distinctness::Distinct,
+                        Some(Ordering::Ascending),
+                    );
+                })
+                .collect()
+        }
+    }
 }
 
 pub trait QueryRecord: Record + QueryRecordDecode<Row, Output = Self> {

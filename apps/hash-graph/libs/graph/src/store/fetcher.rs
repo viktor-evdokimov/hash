@@ -41,7 +41,7 @@ use validation::ValidationProfile;
 use crate::{
     ontology::domain_validator::DomainValidator,
     store::{
-        crud::{Read, ReadPaginated, Sorting},
+        crud::{CustomCursor, CustomSorting, Read, ReadPaginated, Sorting},
         knowledge::{EntityValidationType, ValidateEntityError},
         query::{Filter, OntologyQueryPath},
         AccountStore, ConflictBehavior, DataTypeStore, EntityStore, EntityTypeStore,
@@ -682,7 +682,7 @@ where
         &self,
         filter: &Filter<'_, R>,
         temporal_axes: Option<&QueryTemporalAxes>,
-        sorting: Option<&S>,
+        sorting: &S,
         limit: Option<usize>,
         include_drafts: bool,
     ) -> Result<Self::ReadPaginatedStream, QueryError> {
@@ -1208,11 +1208,11 @@ where
         actor_id: AccountId,
         authorization_api: &Au,
         query: &StructuralQuery<'_, Entity>,
-        after: Option<&EntityVertexId>,
+        cursor: CustomSorting<'_, Entity>,
         limit: Option<usize>,
-    ) -> Result<(Subgraph, Option<EntityVertexId>), QueryError> {
+    ) -> Result<(Subgraph, Option<CustomCursor>), QueryError> {
         self.store
-            .get_entity(actor_id, authorization_api, query, after, limit)
+            .get_entity(actor_id, authorization_api, query, cursor, limit)
             .await
     }
 

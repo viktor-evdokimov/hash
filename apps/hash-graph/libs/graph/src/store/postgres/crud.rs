@@ -48,8 +48,7 @@ impl<Cl, R, S> ReadPaginated<R, S> for PostgresStore<Cl>
 where
     Cl: AsClient,
     for<'c> R: QueryRecord + PostgresRecord<QueryPath<'c>: PostgresQueryPath>,
-    S: PostgresSorting<R> + Send + Sync + 'static,
-    S::Cursor: QueryRecordEncode,
+    S: PostgresSorting<R> + Send + Sync,
 {
     type QueryResult = PostgresQueryResult<R, S>;
     type QueryResultSet = Row;
@@ -57,25 +56,23 @@ where
     type ReadPaginatedStream =
         impl Stream<Item = Result<Self::QueryResult, Report<QueryError>>> + Send + Sync;
 
-    #[tracing::instrument(level = "info", skip(self, filter, sorting))]
+    // #[tracing::instrument(level = "info", skip(self, filter, sorting))]
     async fn read_paginated(
         &self,
         filter: &Filter<'_, R>,
         temporal_axes: Option<&QueryTemporalAxes>,
-        sorting: Option<&S>,
+        sorting: &S,
         limit: Option<usize>,
         include_drafts: bool,
     ) -> Result<Self::ReadPaginatedStream, Report<QueryError>> {
-        let cursor_parameters = sorting
-            .and_then(Sorting::cursor)
-            .map(QueryRecordEncode::encode);
+        let cursor_parameters = sorting.encode().change_context(QueryError)?;
 
         let mut compiler = SelectCompiler::new(temporal_axes, include_drafts);
         if let Some(limit) = limit {
             compiler.set_limit(limit);
         }
 
-        let cursor_indices = S::compile(
+        let cursor_indices = sorting.compile(
             &mut compiler,
             #[allow(clippy::unwrap_used)]
             cursor_parameters.as_ref(),
