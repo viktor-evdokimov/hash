@@ -24,12 +24,12 @@ export const systemEntityTypes = {
     entityTypeBaseUrl: "https://hash.ai/@hash/types/entity-type/canvas/",
   },
   comment: {
-    entityTypeId: "https://hash.ai/@hash/types/entity-type/comment/v/3",
+    entityTypeId: "https://hash.ai/@hash/types/entity-type/comment/v/4",
     entityTypeBaseUrl: "https://hash.ai/@hash/types/entity-type/comment/",
   },
   commentNotification: {
     entityTypeId:
-      "https://hash.ai/@hash/types/entity-type/comment-notification/v/3",
+      "https://hash.ai/@hash/types/entity-type/comment-notification/v/4",
     entityTypeBaseUrl:
       "https://hash.ai/@hash/types/entity-type/comment-notification/",
   },
@@ -82,7 +82,7 @@ export const systemEntityTypes = {
   },
   linearIntegration: {
     entityTypeId:
-      "https://hash.ai/@hash/types/entity-type/linear-integration/v/3",
+      "https://hash.ai/@hash/types/entity-type/linear-integration/v/4",
     entityTypeBaseUrl:
       "https://hash.ai/@hash/types/entity-type/linear-integration/",
   },
@@ -98,7 +98,7 @@ export const systemEntityTypes = {
   },
   mentionNotification: {
     entityTypeId:
-      "https://hash.ai/@hash/types/entity-type/mention-notification/v/3",
+      "https://hash.ai/@hash/types/entity-type/mention-notification/v/4",
     entityTypeBaseUrl:
       "https://hash.ai/@hash/types/entity-type/mention-notification/",
   },
@@ -362,6 +362,12 @@ export const systemPropertyTypes = {
   email: {
     propertyTypeId: "https://hash.ai/@hash/types/property-type/email/v/1",
     propertyTypeBaseUrl: "https://hash.ai/@hash/types/property-type/email/",
+  },
+  enabledFeatureFlag: {
+    propertyTypeId:
+      "https://hash.ai/@hash/types/property-type/enabled-feature-flag/v/1",
+    propertyTypeBaseUrl:
+      "https://hash.ai/@hash/types/property-type/enabled-feature-flag/",
   },
   entityEditionId: {
     propertyTypeId:
