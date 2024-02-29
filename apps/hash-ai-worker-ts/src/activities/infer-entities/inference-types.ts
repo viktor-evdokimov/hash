@@ -46,6 +46,8 @@ export type InferenceState = {
   inProgressEntityIds: number[];
   /** A list of entities that can be inferred from the input, in summary form (no properties) */
   proposedEntitySummaries: ProposedEntitySummary[];
+  /** A list of entities that can be inferred from input, in entity form (with properties) */
+  proposedEntities: ProposedEntity[];
   /** The results of attempting to persist entities inferred from the input */
   resultsByTemporaryId: Record<
     number,
