@@ -14,8 +14,8 @@ import { useEntityTypesContextRequired } from "../../shared/entity-types-context
 export const EntityTypeSelector: FunctionComponent<{
   excludeEntityTypeIds?: VersionedUrl[];
   onSelect: (entityType: EntityTypeWithMetadata) => void;
-  onCancel: () => void;
-  onCreateNew: (searchValue: string) => void;
+  onCancel?: () => void;
+  onCreateNew?: (searchValue: string) => void;
   disableCreateNewEmpty?: boolean;
   sx?: BoxProps["sx"];
 }> = ({
@@ -50,7 +50,7 @@ export const EntityTypeSelector: FunctionComponent<{
           onMouseDown: (evt) => {
             evt.preventDefault();
             evt.stopPropagation();
-            onCreateNew(search);
+            onCreateNew?.(search);
           },
           disabled: disableCreateNewEmpty && search === "",
         },
@@ -91,16 +91,16 @@ export const EntityTypeSelector: FunctionComponent<{
       }}
       onKeyUp={(evt) => {
         if (evt.key === "Enter" && !highlightedRef.current) {
-          onCreateNew(search);
+          onCreateNew?.(search);
         }
       }}
       onKeyDown={(evt) => {
         if (evt.key === "Escape") {
-          onCancel();
+          onCancel?.();
         }
       }}
       onClickAway={() => {
-        onCancel();
+        onCancel?.();
       }}
       sx={[{ maxWidth: 440 }, ...(Array.isArray(sx) ? sx : [sx])]}
     />

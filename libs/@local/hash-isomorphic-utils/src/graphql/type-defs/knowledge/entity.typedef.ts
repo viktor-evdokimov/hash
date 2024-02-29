@@ -176,6 +176,10 @@ export const entityTypedef = gql`
     draft: Boolean
   }
 
+  type ResearchTaskResult {
+    result: JSONObject!
+  }
+
   extend type Mutation {
     """
     Create an entity.
@@ -281,5 +285,10 @@ export const entityTypedef = gql`
       accountGroupId: AccountGroupId!
       accountId: AccountId!
     ): Boolean!
+
+    startResearchTask(
+      prompt: String!
+      entityTypeIds: [VersionedUrl!]!
+    ): ResearchTaskResult!
   }
 `;

@@ -1,4 +1,4 @@
-import { faHome } from "@fortawesome/free-solid-svg-icons";
+import { faBolt, faHome } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon, IconButton } from "@hashintel/design-system";
 import { Box, Drawer, Tooltip } from "@mui/material";
 import { useRouter } from "next/router";
@@ -81,6 +81,13 @@ export const PageSidebar: FunctionComponent = () => {
         href="/"
         tooltipTitle=""
         active={router.pathname === "/[shortname]"}
+      />
+      <TopNavLink
+        icon={<FontAwesomeIcon icon={faBolt} />}
+        title="AI"
+        href="/ai"
+        tooltipTitle=""
+        active={router.pathname === "/ai"}
       />
       <TopNavLink
         icon={<InboxIcon sx={{ fontSize: 16 }} />}

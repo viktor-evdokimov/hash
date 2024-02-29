@@ -56,10 +56,7 @@ export const inferEntitiesFromWebPageActivity = async (params: {
         status.message ?? "no message provided"
       }`,
     );
-    return {
-      ...status,
-      contents: [{ results: [], usage: inferenceState.usage }],
-    };
+    return status;
   }
 
   /**
